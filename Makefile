@@ -13,14 +13,16 @@ BIN := bin
 BUILD := build
 
 # Other configuration
-vpath %.c src
-vpath %.h src
+vpath % src
 vpath %.o build
 
 ### Patterns
-# Object files
+# Object files (from C)
 $(BUILD)/%.o: %.c | $(BUILD)
-	$(CC) -c $< -o $@
+	$(CC) $(CFLAGS) -c $< -o $@
+# Object files (from x86)
+$(BUILD)/%.o: %.s | $(BUILD)
+	$(CC) $(CFLAGS) -c $< -o $@
 
 ### Build Tasks
 all: $(BIN)/mandelbrot
@@ -32,7 +34,7 @@ $(BUILD):
 
 # Binary Executable(s)
 $(BIN)/mandelbrot: $(BUILD)/mandelbrot.o $(SRC_LIBS) | $(BIN)
-	$(CC) $(LIBS) $^ -o $@
+	$(CC) $(CFLAGS) $(LIBS) $^ -o $@
 
 ### Other Tasks
 clean:
