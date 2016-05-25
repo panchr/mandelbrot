@@ -6,13 +6,20 @@ CC := gcc -Wall
 RM := rm -rfv
 
 LIBS := -lpng
+SRC_LIBS = $(BUILD)/image.o
 
 SRC := src
 BIN := bin
 BUILD := build
 
+# Other configuration
+vpath %.c src
+vpath %.h src
+vpath %.o build
+
 ### Patterns
-$(BUILD)/%.o: $(SRC)/%.c | $(BUILD)
+# Object files
+$(BUILD)/%.o: %.c | $(BUILD)
 	$(CC) -c $< -o $@
 
 ### Build Tasks
@@ -24,7 +31,7 @@ $(BUILD):
 	mkdir -p $@
 
 # Binary Executable(s)
-$(BIN)/mandelbrot: $(BUILD)/mandelbrot.o $(BUILD)/image.o | $(BIN)
+$(BIN)/mandelbrot: $(BUILD)/mandelbrot.o $(SRC_LIBS) | $(BIN)
 	$(CC) $(LIBS) $^ -o $@
 
 ### Other Tasks
