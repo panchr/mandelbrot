@@ -39,6 +39,16 @@ static Image_T generate_mandelbrot_set(size_t width, size_t height,
 	unsigned long iterations, unsigned long exponent);
 
 /*
+* Raise a complex number to a real power.
+* Parameters
+*	double complex z - complex base
+*	unsigned long exp - real exponent
+* Returns
+*	(double complex) z^exp
+*/
+static double complex crpow(double complex z, unsigned long exp);
+
+/*
 * Generate the Mandelbrot Set with the given settings, saving it to a file.
 * Command-Line Arguments
 *	char *path - path of the file to save the image to (default: mandelbrot.png)
@@ -139,7 +149,7 @@ static Image_T generate_mandelbrot_set(size_t width, size_t height,
 			/* Iterate the function z^exponent + c as long as it stays within
 			the given limit. */
 			for (iter = 0; iter < iterations; iter++) {
-				z = cpow(z, exponent) + cpoint;
+				z = crpow(z, exponent) + cpoint;
 
 				/* Passed the limit, so do not draw the point. Also, no need
 				to iterate further. */
@@ -154,4 +164,12 @@ static Image_T generate_mandelbrot_set(size_t width, size_t height,
 		}
 
 	return image;
+	}
+
+/* Raise a complex number to a real power. */
+static double complex crpow(double complex z, unsigned long exp) {
+	unsigned long e; /* current iteration */
+	double complex w = z; /* iterated exponent*/
+	for (e = 1; e < exp; e++) w *= z;
+	return w;
 	}
