@@ -16,6 +16,11 @@
 #define YMIN -2.0
 #define YMAX 2.0
 #define LIMIT 2.0
+#define DEFAULT_FILE "mandelbrot.png"
+#define DEFAULT_WIDTH 1000
+#define DEFAULT_HEIGHT 1000
+#define DEFAULT_ITERATIONS 100
+#define DEFAULT_EXPONENT 2
 
 /* --- Internal Method Prototypes --- */
 /*
@@ -42,31 +47,39 @@ static Image_T generate_mandelbrot_set(size_t width, size_t height,
 */
 int main(int argc, char *argv[]) {
 	/* Command-line arguments. */
-	char *path = "mandelbrot.png"; /* path of the file to save the image to */
-	size_t width = 1000; /* width of the image */
-	size_t height = 1000; /* height of the image */
-	unsigned long iterations = 100; /* number of iterations to use per point */
-	unsigned long exponent = 2; /* exponent to use of the Mandelbrot Set */
+	char *path = DEFAULT_FILE; /* path of the file to save the image to */
+	size_t width = DEFAULT_WIDTH; /* width of the image */
+	size_t height = DEFAULT_HEIGHT; /* height of the image */
+	unsigned long iterations = DEFAULT_ITERATIONS; /* number of iterations
+	to use per point */
+	unsigned long exponent = DEFAULT_EXPONENT; /* exponent to use for
+	the Mandelbrot Set */
 
 	Image_T image = NULL; /* resulting image of Mandelbrot set. */
 
+	/* There are no breaks (until the last case) because if argc = n,
+	we also want to run the (n - w) case for w in {0, n - 1} as all of those
+	arguments also need to be processed - they are present in the command-line
+	arguments. */
 	switch (argc) {
-		case 6:
+		case 6: /* argv[5] is the exponent */
 			exponent = strtoul(argv[5], NULL, 0);
-		case 5:
+		case 5: /* argv[4] is the number of iterations */
 			iterations = strtoul(argv[4], NULL, 0);
-		case 4:
+		case 4: /* argv[3] is the height */
 			height = (size_t) strtoul(argv[3], NULL, 0);
-		case 3:
+		case 3: /* argv[2] is the width */
 			width = (size_t) strtoul(argv[2], NULL, 0);
-		case 2:
+		case 2: /* argv[1] is the path */
 			path = argv[1];
+			break;
 		}
 
 	printf("Configuration\n\tFile: %s\n\tSize (Width x Height): %lu x %lu px\n\
 \tIterations: %lu\n\tExponent: %lu\n",
 		path, width, height, iterations, exponent);
 
+	/* Generate the Mandelbrot Set and try to save it to a file. */
 	image = generate_mandelbrot_set(width, height, exponent, iterations);
 	if (! Image_save(image, path)) {
 		fprintf(stderr, "Error saving to file %s\n", path);
@@ -99,7 +112,7 @@ static Image_T generate_mandelbrot_set(size_t width, size_t height,
 
 	image = Image_new(width, height);
 	if (image == NULL) {
-		fprintf(stderr, "Memory error.\n");
+		fprintf(stderr, "Memory error when creating image.\n");
 		exit(EXIT_FAILURE);
 		}
 
@@ -108,17 +121,26 @@ static Image_T generate_mandelbrot_set(size_t width, size_t height,
 	x_scale = (XMAX - XMIN) / width;
 	y_scale = (YMAX - YMIN) / height;
 
+	/* Iterate through the pixels in the image, mapping each to a single
+	point in the xy-plane. */
 	for (w = 0; w < width; w++) {
 		x =  x_scale * w + XMIN;
 		for (h = 0; h < height; h++) {
 			y = YMAX - y_scale * h;
 
+			/* Convert the (x, y) coordinate to a complex number. */
 			cpoint = x + y * I;
 			z = cpoint;
 
 			draw = true;
+
+			/* Iterate the function z^exponent + c as long as it stays within
+			the given limit. */
 			for (iter = 0; iter < iterations; iter++) {
 				z = cpow(z, exponent) + cpoint;
+
+				/* Passed the limit, so do not draw the point. Also, no need
+				to iterate further. */
 				if (cabs(z) > LIMIT) {
 					draw = false;
 					break;
@@ -126,9 +148,7 @@ static Image_T generate_mandelbrot_set(size_t width, size_t height,
 				}
 
 			if (draw) Image_setPixel(image, w, h, 0, 255, 0);
-			// if (draw) printf("(%f, %f) ", x, y);
 			}
-		// printf("\n");
 		}
 
 	return image;
