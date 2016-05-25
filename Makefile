@@ -3,26 +3,30 @@
 
 # Configuration
 CC := gcc -Wall
-RM := rm -fv
+RM := rm -rfv
 
 LIBS := -lpng
 
+BIN := bin
+BUILD := build
+
 ### Patterns
-%.o: %c
-	$(CC) -c $<
+$(BUILD)/%.o: %.c | $(BUILD)
+	$(CC) -c $< -o $@
 
 ### Build Tasks
-all: mandelbrot
+all: $(BIN)/mandelbrot
+
+$(BIN):
+	mkdir -p $@
+$(BUILD):
+	mkdir -p $@
 
 # Binary Executable(s)
-mandelbrot: mandelbrot.o image.o
+$(BIN)/mandelbrot: $(BUILD)/mandelbrot.o $(BUILD)/image.o | $(BIN)
 	$(CC) $(LIBS) $^ -o $@
-
-# Object Files
-mandelbrot.o: mandelbrot.c
-image.o: image.c
 
 ### Other Tasks
 clean:
-	$(RM) *.o
-	$(RM) mandelbrot
+	$(RM) $(BUILD)
+	$(RM) $(BIN)

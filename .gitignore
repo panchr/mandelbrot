@@ -1,5 +1,17 @@
+#.gitignore
+# Rushy Panchal
+# (Partially) created by https://www.gitignore.io/api/sublimetext,c
 
-# Created by https://www.gitignore.io/api/sublimetext,c
+### Other Files ###
+# Executables/Object Files
+bin/
+build/
+
+# Images Generated
+*.png
+*.jpeg
+*.jpg
+*.bmp
 
 ### SublimeText ###
 # cache files for sublime text
