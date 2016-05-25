@@ -82,7 +82,7 @@ int main(int argc, char *argv[]) {
 		path, width, height, iterations, exponent);
 
 	/* Generate the Mandelbrot Set and try to save it to a file. */
-	image = generate_mandelbrot_set(width, height, exponent, iterations);
+	image = generate_mandelbrot_set(width, height, iterations, exponent);
 	if (! Image_save(image, path)) {
 		fprintf(stderr, "Error saving to file %s\n", path);
 		exit(EXIT_FAILURE);
@@ -95,7 +95,7 @@ int main(int argc, char *argv[]) {
 /* Generate the Mandelbrot Set and return an image. */
 static Image_T generate_mandelbrot_set(size_t width, size_t height,
 	unsigned long iterations, unsigned long exponent) {
-	Image_T image; /* resulting image */
+	Image_T image = NULL; /* resulting image */
 	double x_scale; /* scale of the x plane */
 	double y_scale; /* scale of the y plane */
 
@@ -136,7 +136,6 @@ static Image_T generate_mandelbrot_set(size_t width, size_t height,
 			z = cpoint;
 
 			draw = true;
-
 			/* Iterate the function z^exponent + c as long as it stays within
 			the given limit. */
 			for (iter = 0; iter < iterations; iter++) {
@@ -150,7 +149,7 @@ static Image_T generate_mandelbrot_set(size_t width, size_t height,
 					}
 				}
 
-			if (draw) Image_setPixel(image, w, h, 0, 255, 0);
+			if (draw) Image_setPixel(image, w, h, 0, 0, 255);
 			}
 		}
 
