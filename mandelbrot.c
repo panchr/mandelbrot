@@ -1,7 +1,9 @@
 /*
 * mandelbrot.c
 * Author: Rushy Panchal
-* Description: Renders the Mandelbrot set using a 
+* Description: Renders the Mandelbrot Set to an image using an iterated function
+*	of z^exp + c, where z starts at c (and c is every point in the complex plane).
+*	exp is user-inputted, but the standard Set is created using exp=2.
 */
 
 #include <stdio.h>
@@ -85,6 +87,7 @@ int main(int argc, char *argv[]) {
 		fprintf(stderr, "Error saving to file %s\n", path);
 		exit(EXIT_FAILURE);
 		}
+	Image_free(image);
 
 	return 0;
 	}
@@ -126,7 +129,7 @@ static Image_T generate_mandelbrot_set(size_t width, size_t height,
 	for (w = 0; w < width; w++) {
 		x =  x_scale * w + XMIN;
 		for (h = 0; h < height; h++) {
-			y = YMAX - y_scale * h;
+			y = y_scale * h + YMIN;
 
 			/* Convert the (x, y) coordinate to a complex number. */
 			cpoint = x + y * I;
