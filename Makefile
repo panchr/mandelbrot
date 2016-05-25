@@ -7,11 +7,12 @@ RM := rm -rfv
 
 LIBS := -lpng
 
+SRC := src
 BIN := bin
 BUILD := build
 
 ### Patterns
-$(BUILD)/%.o: %.c | $(BUILD)
+$(BUILD)/%.o: $(SRC)/%.c | $(BUILD)
 	$(CC) -c $< -o $@
 
 ### Build Tasks
