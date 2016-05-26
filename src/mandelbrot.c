@@ -28,25 +28,25 @@
 /*
 * Generate the Mandelbrot Set and return an image.
 * Parameters
-*	size_t width - width of the image
-*	size_t height - height of the image
-*	unsigned long iterations - iterations per pixel
-*	unsigned long exponent - exponent for the set
+*	const size_t width - width of the image
+*	const size_t height - height of the image
+*	const unsigned long iterations - iterations per pixel
+*	const unsigned long exponent - exponent for the set
 * Returns
 *	(Image_T) image of the set
 */
-static Image_T generate_mandelbrot_set(size_t width, size_t height,
-	unsigned long iterations, unsigned long exponent);
+static Image_T generate_mandelbrot_set(const size_t width, const size_t height,
+	const unsigned long iterations, const unsigned long exponent);
 
 /*
 * Raise a complex number to a real power.
 * Parameters
-*	double complex z - complex base
+*	const double complex z - complex base
 *	unsigned long exp - real exponent
 * Returns
 *	(double complex) z^exp
 */
-static inline double complex crpow(double complex z, unsigned long exp);
+static inline double complex crpow(const double complex z, unsigned long exp);
 
 /*
 * Generate the Mandelbrot Set with the given settings, saving it to a file.
@@ -102,11 +102,14 @@ int main(int argc, char *argv[]) {
 	}
 
 /* Generate the Mandelbrot Set and return an image. */
-static Image_T generate_mandelbrot_set(size_t width, size_t height,
-	unsigned long iterations, unsigned long exponent) {
+static Image_T generate_mandelbrot_set(const size_t width, const size_t height,
+	const unsigned long iterations, const unsigned long exponent) {
 	Image_T image = NULL; /* resulting image */
-	double x_scale; /* scale of the x plane */
-	double y_scale; /* scale of the y plane */
+
+	/* The scales are used to map each pixel to the appropriate Cartestian
+	coordinate. */
+	const double x_scale = (XMAX - XMIN) / width; /* scale of the x plane */
+	const double y_scale = (YMAX - YMIN) / height; /* scale of the y plane */
 
 	double x; /* x coordinate */
 	double y; /* y coordinate */
@@ -120,7 +123,7 @@ static Image_T generate_mandelbrot_set(size_t width, size_t height,
 	assert(width >= 0);
 	assert(height >= 0);
 	assert(iterations >= 0);
-	assert(exponent > 0);
+	assert(exponent >= 0);
 
 	image = Image_new(width, height);
 	if (image == NULL) {
@@ -128,20 +131,10 @@ static Image_T generate_mandelbrot_set(size_t width, size_t height,
 		exit(EXIT_FAILURE);
 		}
 
-	/* The scales are used to map each pixel to the appropriate Cartestian
-	coordinate. */
-	x_scale = (XMAX - XMIN) / width;
-	y_scale = (YMAX - YMIN) / height;
-
 	/* Iterate through the pixels in the image, mapping each to a single
 	point in the xy-plane. */
-	x = XMIN;
-	for (w = 0; w < width; w++) {
-		x +=  x_scale;
-		y = YMIN;
-		for (h = 0; h < height; h++) {
-			y += y_scale;
-
+	for (x = XMIN, w = 0; w < width; x += x_scale, w++) {
+		for (y = YMIN, h = 0; h < height; y += y_scale, h++) {
 			/* Convert the (x, y) coordinate to a complex number. */
 			cpoint = x + y * I;
 			z = cpoint;
@@ -173,12 +166,11 @@ static Image_T generate_mandelbrot_set(size_t width, size_t height,
 	}
 
 /* Raise a complex number to a real power. */
-static inline double complex crpow(double complex z, unsigned long exp) {
+static inline double complex crpow(const double complex z, unsigned long exp) {
 	double complex w = z; /* iterated exponent*/
 
-	/* exp should never be 0 because that's a "degenerate" Mandelbrot set. */
-	assert(exp > 0);
-	
+	if (exp == 0) return 1;
+
 	/* We decrement from the beginning because w starts at z, and so
 	we only need to iterate exp - 1 times. */
 	while (--exp) w *= z;

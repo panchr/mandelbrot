@@ -34,25 +34,27 @@ struct Image {
 /*
 * Get the pixel at a given coordinate.
 * Parameters
-*	Image_T image - image to get pixel from
-*	size_t row - row of the pixel
-*	size_t col - column of the pixel
+*	const Image_T image - image to get pixel from
+*	const size_t row - row of the pixel
+*	const size_t col - column of the pixel
 * Returns
 *	(struct Pixel*) pixel at (row, col) in the image
 */
-static struct Pixel *Image_pixel(Image_T image, size_t row, size_t col);
+static struct Pixel *Image_pixel(const Image_T image, const size_t row,
+	const size_t col);
 
 /*
 * Free the PNG rows.
 * Parameters
 *	png_structp png - png struct to free from
 *	png_byte **rows - rows to free
-*	size_t count - number of rows
+*	const size_t count - number of rows
 */
-static void Image_freePngRows(png_structp png, png_byte **rows, size_t count);
+static void Image_freePngRows(png_structp png, png_byte **rows,
+	const size_t count);
 
 /* Create a new image of the requested width and height. */
-Image_T Image_new(size_t width, size_t height) {
+Image_T Image_new(const size_t width, const size_t height) {
 	Image_T image; /* image for client */
 
 	assert(width >= 0);
@@ -83,8 +85,8 @@ void Image_free(Image_T image) {
 	}
 
 /* Set the RGB color of the pixel in the image. */
-void Image_setPixel(Image_T image, size_t row, size_t col,
-	uint8_t red, uint8_t green, uint8_t blue) {
+void Image_setPixel(const Image_T image, const size_t row, const size_t col,
+	const uint8_t red, const uint8_t green, const uint8_t blue) {
 	struct Pixel *pixel = NULL; /* pixel at (row, col) */
 
 	assert(image != NULL);
@@ -192,7 +194,8 @@ bool Image_save(const Image_T image, const char *path) {
 
 /* --- Internal Methods --- */
 /* Get the pixel at a given coordinate. */
-static struct Pixel *Image_pixel(Image_T image, size_t row, size_t col) {
+static struct Pixel *Image_pixel(const Image_T image, const size_t row,
+	const size_t col) {
 	assert(image != NULL);
 	assert(row >= 0);
 	assert(col >= 0);
@@ -201,7 +204,8 @@ static struct Pixel *Image_pixel(Image_T image, size_t row, size_t col) {
 	}
 
 /* Free the PNG rows. */
-static void Image_freePngRows(png_structp png, png_byte **rows, size_t count) {
+static void Image_freePngRows(png_structp png, png_byte **rows,
+	const size_t count) {
 	size_t iteration; /* iteration count */
 
 	assert(png != NULL);
