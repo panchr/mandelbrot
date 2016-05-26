@@ -46,7 +46,7 @@ static Image_T generate_mandelbrot_set(size_t width, size_t height,
 * Returns
 *	(double complex) z^exp
 */
-static double complex crpow(double complex z, unsigned long exp);
+static inline double complex crpow(double complex z, unsigned long exp);
 
 /*
 * Generate the Mandelbrot Set with the given settings, saving it to a file.
@@ -95,7 +95,6 @@ int main(int argc, char *argv[]) {
 	image = generate_mandelbrot_set(width, height, iterations, exponent);
 	if (! Image_save(image, path)) {
 		fprintf(stderr, "Error saving to file %s\n", path);
-		exit(EXIT_FAILURE);
 		}
 	Image_free(image);
 
@@ -136,10 +135,12 @@ static Image_T generate_mandelbrot_set(size_t width, size_t height,
 
 	/* Iterate through the pixels in the image, mapping each to a single
 	point in the xy-plane. */
+	x = XMIN;
 	for (w = 0; w < width; w++) {
-		x =  x_scale * w + XMIN;
+		x +=  x_scale;
+		y = YMIN;
 		for (h = 0; h < height; h++) {
-			y = y_scale * h + YMIN;
+			y += y_scale;
 
 			/* Convert the (x, y) coordinate to a complex number. */
 			cpoint = x + y * I;
@@ -147,8 +148,13 @@ static Image_T generate_mandelbrot_set(size_t width, size_t height,
 
 			draw = true;
 			/* Iterate the function z^exponent + c as long as it stays within
-			the given limit. */
-			for (iter = 0; iter < iterations; iter++) {
+			the given limit.
+			Note: for performance, this loop is unrolled. This means that
+			only half the iterations are perfomed but the main calculation
+			in each iteration is done twice per unrolled iteration. */
+			if (iterations % 2 == 1) z = crpow(z, exponent) + cpoint;
+			for (iter = 0; iter < iterations / 2; iter++) {
+				z = crpow(z, exponent) + cpoint;
 				z = crpow(z, exponent) + cpoint;
 
 				/* Passed the limit, so do not draw the point. Also, no need
@@ -167,9 +173,14 @@ static Image_T generate_mandelbrot_set(size_t width, size_t height,
 	}
 
 /* Raise a complex number to a real power. */
-static double complex crpow(double complex z, unsigned long exp) {
-	unsigned long e; /* current iteration */
+static inline double complex crpow(double complex z, unsigned long exp) {
 	double complex w = z; /* iterated exponent*/
-	for (e = 1; e < exp; e++) w *= z;
+
+	/* exp should never be 0 because that's a "degenerate" Mandelbrot set. */
+	assert(exp > 0);
+	
+	/* We decrement from the beginning because w starts at z, and so
+	we only need to iterate exp - 1 times. */
+	while (--exp) w *= z;
 	return w;
 	}
