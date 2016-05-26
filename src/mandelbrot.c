@@ -45,14 +45,17 @@ static Image_T generate_mandelbrot_set(const size_t width, const size_t height,
 	const double ymax, const double radius);
 
 /*
-* Raise a complex number to a real power.
+* Raise a complex number to a real power. Stores the return value in
+* *zreal and *zimag.
 * Parameters
-*	const double complex z - complex base
+*	double *zreal - real part of the complex number
+*	double *zimag - imaginary part of the complex number
 *	unsigned long exp - real exponent
-* Returns
-*	(double complex) z^exp
+*	const double real_extra - extra value to add to *zreal (after exponentiation)
+*	const double imag_extra - extra value to add to *zimag (after exponentiation)
 */
-static inline void crpow(double *zreal,  double *zimag, unsigned long exp);
+static inline void crpow(double *zreal,  double *zimag, unsigned long exp,
+	const double real_extra, const double imag_extra);
 
 /*
 * Generate the Mandelbrot Set with the given settings, saving it to a file.
@@ -156,18 +159,11 @@ static Image_T generate_mandelbrot_set(const size_t width, const size_t height,
 			Note: for performance, this loop is unrolled. This means that
 			only half the iterations are perfomed but the main calculation
 			in each iteration is done twice per unrolled iteration. */
-			if (iterations % 2 == 1) {
-				crpow(&zreal, &zimag, exponent);
-				zreal += x;
-				zimag += y;
-				}
+			if (iterations % 2 == 1) crpow(&zreal, &zimag, exponent, x, y);
+
 			for (iter = 0; iter < iterations / 2; iter++) {
-				crpow(&zreal, &zimag, exponent);
-				zreal += x;
-				zimag += y;
-				crpow(&zreal, &zimag, exponent);
-				zreal += x;
-				zimag += y;
+				crpow(&zreal, &zimag, exponent, x, y);
+				crpow(&zreal, &zimag, exponent, x, y);
 
 				/* If it passes the limit, do not draw the point. Also, no need
 				to iterate further as any further iterations will also pass the limit. */
@@ -184,9 +180,10 @@ static Image_T generate_mandelbrot_set(const size_t width, const size_t height,
 	return image;
 	}
 
-/* Raise a complex number to a real power. */
-static inline void crpow(double *zreal, double *zimag,
-	unsigned long exp) {
+/* Raise a complex number to a real power and add extra real/imaginary parts
+to the result. */
+static inline void crpow(double *zreal, double *zimag, unsigned long exp,
+	const double real_extra, const double imag_extra) {
 	double wreal = *zreal;
 	double wimag = *zimag;
 	double wreal_temp;
@@ -205,6 +202,6 @@ static inline void crpow(double *zreal, double *zimag,
 		wreal = wreal_temp;
 		}
 	
-	*zreal = wreal;
-	*zimag = wimag;
+	*zreal = wreal + real_extra;
+	*zimag = wimag + imag_extra;
 	}
