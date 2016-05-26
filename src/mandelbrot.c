@@ -8,7 +8,6 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <complex.h>
 #include <math.h>
 #include <assert.h>
 #include "image.h"
@@ -32,11 +31,18 @@
 *	const size_t height - height of the image
 *	const unsigned long iterations - iterations per pixel
 *	const unsigned long exponent - exponent for the set
+*	const double xmin - minimum x value of the graph
+*	const double xmax - maximum x value of the graph
+*	const double ymin - minimum y value of the graph
+*	const double ymax - maximum y value of the graph
+*	const double radius - escape radius of the set
 * Returns
 *	(Image_T) image of the set
 */
 static Image_T generate_mandelbrot_set(const size_t width, const size_t height,
-	const unsigned long iterations, const unsigned long exponent);
+	const unsigned long iterations, const unsigned long exponent,
+	const double xmin, const double xmax, const double ymin,
+	const double ymax, const double radius);
 
 /*
 * Raise a complex number to a real power.
@@ -46,7 +52,7 @@ static Image_T generate_mandelbrot_set(const size_t width, const size_t height,
 * Returns
 *	(double complex) z^exp
 */
-static inline double complex crpow(const double complex z, unsigned long exp);
+static inline void crpow(double *zreal,  double *zimag, unsigned long exp);
 
 /*
 * Generate the Mandelbrot Set with the given settings, saving it to a file.
@@ -92,7 +98,8 @@ int main(int argc, char *argv[]) {
 		path, width, height, iterations, exponent);
 
 	/* Generate the Mandelbrot Set and try to save it to a file. */
-	image = generate_mandelbrot_set(width, height, iterations, exponent);
+	image = generate_mandelbrot_set(width, height, iterations, exponent,
+		XMIN, XMAX, YMIN, YMAX, LIMIT);
 	if (! Image_save(image, path)) {
 		fprintf(stderr, "Error saving to file %s\n", path);
 		}
@@ -103,22 +110,26 @@ int main(int argc, char *argv[]) {
 
 /* Generate the Mandelbrot Set and return an image. */
 static Image_T generate_mandelbrot_set(const size_t width, const size_t height,
-	const unsigned long iterations, const unsigned long exponent) {
+	const unsigned long iterations, const unsigned long exponent,
+	const double xmin, const double xmax, const double ymin,
+	const double ymax, const double radius) {
 	Image_T image = NULL; /* resulting image */
 
 	/* The scales are used to map each pixel to the appropriate Cartestian
 	coordinate. */
-	const double x_scale = (XMAX - XMIN) / width; /* scale of the x plane */
-	const double y_scale = (YMAX - YMIN) / height; /* scale of the y plane */
+	const double x_scale = (xmax - xmin) / width; /* scale of the x plane */
+	const double y_scale = (ymax - ymin) / height; /* scale of the y plane */
+	const double limit = radius * radius; /* radius squared avoids taking the
+	square root in abs(z). */
 
 	double x; /* x coordinate */
 	double y; /* y coordinate */
 	size_t w; /* iterating width */
 	size_t h; /* iterating height */
-	double complex cpoint; /* current iterating point in the plane */
-	double complex z; /* current iterating value in the plane */
+	double zreal; /* real part of the complex number */
+	double zimag; /* imaginary part of the complex number */
 	unsigned long iter; /* current iteration */
-	bool draw; /* whether or not to draw the pixel. */
+	bool draw; /* whether or not to draw the pixel */
 
 	assert(width >= 0);
 	assert(height >= 0);
@@ -133,11 +144,11 @@ static Image_T generate_mandelbrot_set(const size_t width, const size_t height,
 
 	/* Iterate through the pixels in the image, mapping each to a single
 	point in the xy-plane. */
-	for (x = XMIN, w = 0; w < width; x += x_scale, w++) {
-		for (y = YMIN, h = 0; h < height; y += y_scale, h++) {
+	for (x = xmin, w = 0; w < width; x += x_scale, w++) {
+		for (y = ymin, h = 0; h < height; y += y_scale, h++) {
 			/* Convert the (x, y) coordinate to a complex number. */
-			cpoint = x + y * I;
-			z = cpoint;
+			zreal = x;
+			zimag = y;
 
 			draw = true;
 			/* Iterate the function z^exponent + c as long as it stays within
@@ -145,14 +156,22 @@ static Image_T generate_mandelbrot_set(const size_t width, const size_t height,
 			Note: for performance, this loop is unrolled. This means that
 			only half the iterations are perfomed but the main calculation
 			in each iteration is done twice per unrolled iteration. */
-			if (iterations % 2 == 1) z = crpow(z, exponent) + cpoint;
+			if (iterations % 2 == 1) {
+				crpow(&zreal, &zimag, exponent);
+				zreal += x;
+				zimag += y;
+				}
 			for (iter = 0; iter < iterations / 2; iter++) {
-				z = crpow(z, exponent) + cpoint;
-				z = crpow(z, exponent) + cpoint;
+				crpow(&zreal, &zimag, exponent);
+				zreal += x;
+				zimag += y;
+				crpow(&zreal, &zimag, exponent);
+				zreal += x;
+				zimag += y;
 
-				/* Passed the limit, so do not draw the point. Also, no need
-				to iterate further. */
-				if (cabs(z) > LIMIT) {
+				/* If it passes the limit, do not draw the point. Also, no need
+				to iterate further as any further iterations will also pass the limit. */
+				if ((zreal * zreal + zimag * zimag) > limit) {
 					draw = false;
 					break;
 					}
@@ -166,13 +185,26 @@ static Image_T generate_mandelbrot_set(const size_t width, const size_t height,
 	}
 
 /* Raise a complex number to a real power. */
-static inline double complex crpow(const double complex z, unsigned long exp) {
-	double complex w = z; /* iterated exponent*/
+static inline void crpow(double *zreal, double *zimag,
+	unsigned long exp) {
+	double wreal = *zreal;
+	double wimag = *zimag;
+	double wreal_temp;
 
-	if (exp == 0) return 1;
+	if (exp == 0) {
+		*zreal = 1;
+		*zimag = 0;
+		return;
+		}
 
 	/* We decrement from the beginning because w starts at z, and so
 	we only need to iterate exp - 1 times. */
-	while (--exp) w *= z;
-	return w;
+	while (--exp) {
+		wreal_temp = (*zreal * wreal - *zimag * wimag);
+		wimag = (*zreal * wimag + *zimag * wreal);
+		wreal = wreal_temp;
+		}
+	
+	*zreal = wreal;
+	*zimag = wimag;
 	}
