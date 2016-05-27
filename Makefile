@@ -12,6 +12,9 @@ SRC := src
 BIN := bin
 BUILD := build
 
+NUM_ITER := 250
+SIZE := 2500
+
 # Other configuration
 vpath % src
 vpath %.asm src/mach-x86
@@ -47,8 +50,10 @@ $(BUILD)/image.o: image.c image.h
 ### Other Tasks
 test: CFLAGS=-O3
 test: all
-	time $(BIN)/mandelbrot mandelbrot.png 2500 2500 250
-	time $(BIN)/mandelbrot-x86 mandelbrot-x86.png 2500 2500 250
+	time $(BIN)/mandelbrot mandelbrot.png $(SIZE) $(SIZE) $(NUM_ITER)
+	time $(BIN)/mandelbrot-x86 mandelbrot-x86.png $(SIZE) $(SIZE) $(NUM_ITER)
+
+	diff mandelbrot.png mandelbrot-x86.png
 
 clean:
 	$(RM) $(BUILD)
