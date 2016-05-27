@@ -79,7 +79,7 @@ _generate_mandelbrot_set:
 
 	/* width and height are already in %rdi and %rsi, respectively. */
 	## image = Image_new(width, height);
-	callq _Image_new
+	call _Image_new
 	movq %rax, %r15
 
 	/* Restore the caller-saved registers. */
@@ -161,22 +161,26 @@ loop_height:
 
 	/* Odd number of iterations. */
 	## crpow(&zreal, &zimag, exponent, x, y);
-	callq _crpow
+	call _crpow
 
 /* Even number of iterations.*/
 even_iter:
 	## crpow(&zreal, &zimag, exponent, x, y);
-	callq _crpow
-	callq _crpow
+	call _crpow
+	call _crpow
 
-	## if (zreal * zreal + zimag * zimag <= limit) goto in_limit;
+	## double temp = (zreal * zreal + zimag * zimag);
 	movapd %xmm9, %xmm11
 	mulpd %xmm9, %xmm11
 	movapd %xmm10, %xmm12
 	mulpd %xmm10, %xmm12
 	addpd %xmm11, %xmm12
-	comisd %xmm4, %xmm12
-	jle in_limit
+
+	## if (temp <= limit) goto in_limit;
+	cmplesd %xmm4, %xmm12
+	movq %xmm12, %rax
+	testq %rax, %rax
+	jnz in_limit
 
 	## draw = false;
 	movb $0, %r13b
@@ -218,7 +222,7 @@ check_draw:
 	movb $0, %cl
 	movb $0, %r8b
 	movb $255, %r9b
-	callq _Image_setPixel
+	call _Image_setPixel
 
 	/* Restore the caller-saved registers. */
 	popq %r11
