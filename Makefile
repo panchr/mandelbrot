@@ -14,7 +14,7 @@ BUILD := build
 
 # Other configuration
 vpath % src
-vpath %.s src/mach-x86
+vpath %.asm src/mach-x86
 vpath %.o build
 
 ### Patterns
@@ -22,7 +22,7 @@ vpath %.o build
 $(BUILD)/%.o: %.c | $(BUILD)
 	$(CC) $(CFLAGS) -c $< -o $@
 # Object files (from x86)
-$(BUILD)/%.o: %.s | $(BUILD)
+$(BUILD)/%.o: %.asm | $(BUILD)
 	$(CC) $(CFLAGS) -c $< -o $@
 
 ### Build Tasks
