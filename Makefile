@@ -33,7 +33,6 @@ $(BIN):
 $(BUILD):
 	@mkdir -p $@
 
-
 # Binary Executable(s)
 $(BIN)/mandelbrot: $(BUILD)/mandelbrot.o $(SRC_LIBS) \
 	$(BUILD)/generate_mandelbrot_set.o | $(BIN)
@@ -46,6 +45,11 @@ $(BIN)/mandelbrot-x86: $(BUILD)/mandelbrot.o $(SRC_LIBS) \
 $(BUILD)/image.o: image.c image.h
 
 ### Other Tasks
+test: CFLAGS=-O3
+test: all
+	time $(BIN)/mandelbrot mandelbrot.png 2500 2500 250
+	time $(BIN)/mandelbrot-x86 mandelbrot-x86.png 2500 2500 250
+
 clean:
 	$(RM) $(BUILD)
 	$(RM) $(BIN)

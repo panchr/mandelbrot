@@ -37,8 +37,11 @@ Image_T generate_mandelbrot_set(const size_t width, const size_t height,
 	coordinate. */
 	const double x_scale = (xmax - xmin) / width; /* scale of the x plane */
 	const double y_scale = (ymax - ymin) / height; /* scale of the y plane */
+
 	const double limit = radius * radius; /* radius squared avoids taking the
 	square root in abs(z). */
+	const bool odd_iter = (iterations % 2 == 1);
+	const unsigned long half_iter = iterations / 2;
 
 	double x; /* x coordinate */
 	double y; /* y coordinate */
@@ -74,9 +77,9 @@ Image_T generate_mandelbrot_set(const size_t width, const size_t height,
 			Note: for performance, this loop is unrolled. This means that
 			only half the iterations are perfomed but the main calculation
 			in each iteration is done twice per unrolled iteration. */
-			if (iterations % 2 == 1) crpow(&zreal, &zimag, exponent, x, y);
+			if (odd_iter) crpow(&zreal, &zimag, exponent, x, y);
 
-			for (iter = 0; iter < iterations / 2; iter++) {
+			for (iter = 0; iter < half_iter; iter++) {
 				crpow(&zreal, &zimag, exponent, x, y);
 				crpow(&zreal, &zimag, exponent, x, y);
 
