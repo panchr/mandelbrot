@@ -121,7 +121,7 @@ _generate_mandelbrot_set:
 
 	## const unsigned long half_iter = iterations / 2;
 	/* iterations is never used again, so we just divide that by 2. */
-	shlq $1, %rdx
+	shrq $1, %rdx
 
 	## double x = xmax - x_scale;
 	movapd %xmm1, %xmm5
@@ -171,10 +171,10 @@ even_iter:
 
 	## double temp = (zreal * zreal + zimag * zimag);
 	movapd %xmm9, %xmm11
-	mulpd %xmm9, %xmm11
+	mulsd %xmm9, %xmm11
 	movapd %xmm10, %xmm12
-	mulpd %xmm10, %xmm12
-	addpd %xmm11, %xmm12
+	mulsd %xmm10, %xmm12
+	addsd %xmm11, %xmm12
 
 	## if (temp <= limit) goto in_limit;
 	cmplesd %xmm4, %xmm12
