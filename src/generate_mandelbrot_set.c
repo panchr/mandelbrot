@@ -102,8 +102,8 @@ static inline void crpow(double *zreal, double *zimag, unsigned long exp,
 	double wreal_temp; /* temporary storage of real part */
 
 	if (exp-- == 0) {
-		*zreal = 1;
-		*zimag = 0;
+		*zreal = 1 + real_extra;
+		*zimag = imag_extra;
 		return;
 		}
 
