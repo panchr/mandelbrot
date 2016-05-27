@@ -12,11 +12,11 @@
 #include <assert.h>
 #include "image.h"
 
-#define XMIN -2.0
-#define XMAX 2.0
-#define YMIN -2.0
-#define YMAX 2.0
-#define LIMIT 2.0
+#define XMIN -2.0f
+#define XMAX 2.0f
+#define YMIN -2.0f
+#define YMAX 2.0f
+#define LIMIT 2.0f
 #define DEFAULT_FILE "mandelbrot.png"
 #define DEFAULT_WIDTH 1000
 #define DEFAULT_HEIGHT 1000
@@ -40,6 +40,26 @@
 *	(Image_T) image of the set
 */
 static Image_T generate_mandelbrot_set(const size_t width, const size_t height,
+	const unsigned long iterations, const unsigned long exponent,
+	const double xmin, const double xmax, const double ymin,
+	const double ymax, const double radius);
+
+/*
+* Generate the Mandelbrot Set and return an image.
+* Parameters
+*	const size_t width - width of the image
+*	const size_t height - height of the image
+*	const unsigned long iterations - iterations per pixel
+*	const unsigned long exponent - exponent for the set
+*	const double xmin - minimum x value of the graph
+*	const double xmax - maximum x value of the graph
+*	const double ymin - minimum y value of the graph
+*	const double ymax - maximum y value of the graph
+*	const double radius - escape radius of the set
+* Returns
+*	(Image_T) image of the set
+*/
+extern double generate_mandelbrot_set_asm(const size_t width, const size_t height,
 	const unsigned long iterations, const unsigned long exponent,
 	const double xmin, const double xmax, const double ymin,
 	const double ymax, const double radius);
@@ -99,6 +119,10 @@ int main(int argc, char *argv[]) {
 	printf("Configuration\n\tFile: %s\n\tSize (Width x Height): %lu x %lu px\n\
 \tIterations: %lu\n\tExponent: %lu\n",
 		path, width, height, iterations, exponent);
+
+	generate_mandelbrot_set_asm(width, height, iterations, exponent,
+		XMIN, XMAX, YMIN, YMAX, LIMIT);
+	exit(0);
 
 	/* Generate the Mandelbrot Set and try to save it to a file. */
 	image = generate_mandelbrot_set(width, height, iterations, exponent,
@@ -184,9 +208,9 @@ static Image_T generate_mandelbrot_set(const size_t width, const size_t height,
 to the result. */
 static inline void crpow(double *zreal, double *zimag, unsigned long exp,
 	const double real_extra, const double imag_extra) {
-	double wreal = *zreal;
-	double wimag = *zimag;
-	double wreal_temp;
+	double wreal = *zreal; /* real part of result */
+	double wimag = *zimag; /* imaginary part of result */
+	double wreal_temp; /* temporary storage of real part */
 
 	if (exp == 0) {
 		*zreal = 1;
