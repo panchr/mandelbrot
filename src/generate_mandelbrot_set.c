@@ -40,8 +40,6 @@ Image_T generate_mandelbrot_set(const size_t width, const size_t height,
 
 	const double limit = radius * radius; /* radius squared avoids taking the
 	square root in abs(z). */
-	const bool odd_iter = (iterations % 2 == 1);
-	const unsigned long half_iter = iterations / 2;
 
 	double x; /* x coordinate */
 	double y; /* y coordinate */
@@ -49,6 +47,7 @@ Image_T generate_mandelbrot_set(const size_t width, const size_t height,
 	size_t h; /* iterating height */
 	double zreal; /* real part of the complex number */
 	double zimag; /* imaginary part of the complex number */
+	double distance_sqr; /* distance from origin squared */
 	unsigned long iter; /* current iteration */
 	bool draw; /* whether or not to draw the pixel */
 
@@ -65,27 +64,23 @@ Image_T generate_mandelbrot_set(const size_t width, const size_t height,
 
 	/* Iterate through the pixels in the image, mapping each to a single
 	point in the xy-plane. */
-	for (x = xmax, w = width; w > 0; x -= x_scale, w--) {
-		for (y = ymax, h = height; h > 0; y -= y_scale, h--) {
+	for (x = xmax - x_scale, w = width - 1; w != 0; x -= x_scale, w--) {
+		for (y = ymax - x_scale, h = height - 1; h != 0; y -= y_scale, h--) {
 			/* Convert the (x, y) coordinate to a complex number. */
 			zreal = x;
 			zimag = y;
 
 			draw = true;
 			/* Iterate the function z^exponent + c as long as it stays within
-			the given limit.
-			Note: for performance, this loop is unrolled. This means that
-			only half the iterations are perfomed but the main calculation
-			in each iteration is done twice per unrolled iteration. */
-			if (odd_iter) crpow(&zreal, &zimag, exponent, x, y);
+			the given limit. */
 
-			for (iter = half_iter; iter > 0; iter--) {
-				crpow(&zreal, &zimag, exponent, x, y);
+			for (iter = iterations; iter > 0; iter--) {
 				crpow(&zreal, &zimag, exponent, x, y);
 
 				/* If it passes the limit, do not draw the point. Also, no need
 				to iterate further as any further iterations will also pass the limit. */
-				if ((zreal * zreal + zimag * zimag) > limit) {
+				distance_sqr = (zreal * zreal + zimag * zimag);
+				if (distance_sqr > limit || distance_sqr < 0) {
 					draw = false;
 					break;
 					}
@@ -106,7 +101,7 @@ static inline void crpow(double *zreal, double *zimag, unsigned long exp,
 	double wimag = *zimag; /* imaginary part of result */
 	double wreal_temp; /* temporary storage of real part */
 
-	if (--exp == 0) {
+	if (exp-- == 0) {
 		*zreal = 1;
 		*zimag = 0;
 		return;
@@ -119,7 +114,7 @@ static inline void crpow(double *zreal, double *zimag, unsigned long exp,
 		wimag = (*zreal * wimag + *zimag * wreal);
 		wreal = wreal_temp;
 		}
-	
+
 	*zreal = wreal + real_extra;
 	*zimag = wimag + imag_extra;
 	}

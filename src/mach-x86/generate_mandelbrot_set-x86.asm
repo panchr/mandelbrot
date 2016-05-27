@@ -294,7 +294,7 @@ _crpow:
 
 	movq %rcx, %rax
 
-	## if (--exp != 0) goto _crpow_exp_loop
+	## if (exp-- != 0) goto _crpow_exp_loop
 	decq %rax
 	jnz _crpow_exp_loop
 
@@ -322,12 +322,10 @@ _crpow_exp_loop:
 	movapd %xmm9, %xmm14
 	mulsd %xmm12, %xmm14
 	/* b = zimag * wreal */
-	movapd %xmm10, %xmm15
-	mulsd %xmm11, %xmm15
+	movapd %xmm10, %xmm12
+	mulsd %xmm11, %xmm12
 	/* wimag = wimag + b */
-	addsd %xmm14, %xmm15
-	/* TODO might be able to replace xmm15 with xmm12 directly */
-	movapd %xmm15, %xmm12
+	addsd %xmm14, %xmm12
 
 	## wreal = wreal_temp;
 	movapd %xmm13, %xmm11
