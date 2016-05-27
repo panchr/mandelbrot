@@ -123,19 +123,23 @@ _generate_mandelbrot_set:
 	/* iterations is never used again, so we just divide that by 2. */
 	shlq $1, %rdx
 
-	## double x = xmax;
+	## double x = xmax - x_scale;
 	movapd %xmm1, %xmm5
+	subsd %xmm7, %xmm5
 
-	## size_t w = width;
+	## size_t w = width - 1;
 	movl %edi, %r11d
+	decl %r11d
 
 /* Iterating from w = width to w = 0 */
 loop_width:
-	## double y = ymax;
+	## double y = ymax - y_scale;
 	movapd %xmm3, %xmm6
+	subsd %xmm8, %xmm6
 
-	## size_t h = height;
+	## size_t h = height - 1;
 	movl %esi, %r12d
+	decl %r12d
 
 /* Iterating from h = height to h = 0 */
 loop_height:
@@ -165,7 +169,7 @@ even_iter:
 	callq _crpow
 	callq _crpow
 
-	## if (zreal * zreal + zimag + zimag <= limit) goto in_limit;
+	## if (zreal * zreal + zimag * zimag <= limit) goto in_limit;
 	movapd %xmm9, %xmm11
 	mulpd %xmm9, %xmm11
 	movapd %xmm10, %xmm12
@@ -185,7 +189,7 @@ in_limit:
 
 check_draw:
 	cmpb $0, %r13b
-	jnz end_check_draw
+	jz end_check_draw
 
 	/* Save the caller-saved registers. */
 	subq $80, %rsp
@@ -213,7 +217,7 @@ check_draw:
 	movl %r12d, %edx
 	movb $0, %cl
 	movb $0, %r8b
-	movb $0, %r9b
+	movb $255, %r9b
 	callq _Image_setPixel
 
 	/* Restore the caller-saved registers. */

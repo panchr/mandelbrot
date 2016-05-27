@@ -90,8 +90,8 @@ void Image_setPixel(const Image_T image, const size_t row, const size_t col,
 	struct Pixel *pixel = NULL; /* pixel at (row, col) */
 
 	assert(image != NULL);
-	assert(row >= 0);
-	assert(col >= 0);
+	assert(row >= 0 && row < image->height);
+	assert(col >= 0 && col < image->width);
 
 	pixel = Image_pixel(image, row, col);
 
@@ -197,8 +197,8 @@ bool Image_save(const Image_T image, const char *path) {
 static struct Pixel *Image_pixel(const Image_T image, const size_t row,
 	const size_t col) {
 	assert(image != NULL);
-	assert(row >= 0);
-	assert(col >= 0);
+	assert(row >= 0 && row < image->height);
+	assert(col >= 0 && col < image->width);
 
 	return image->pixels + image->width * col + row;
 	}
