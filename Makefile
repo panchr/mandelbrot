@@ -6,7 +6,7 @@ CC := gcc -Wall
 RM := rm -rfv
 
 LIBS := -lpng
-SRC_LIBS = $(BUILD)/image.o $(BUILD)/generate_mandelbrot_set.o
+SRC_LIBS = $(BUILD)/image.o
 
 SRC := src
 BIN := bin
@@ -26,7 +26,7 @@ $(BUILD)/%.o: %.s | $(BUILD)
 	$(CC) $(CFLAGS) -c $< -o $@
 
 ### Build Tasks
-all: $(BIN)/mandelbrot
+all: $(BIN)/mandelbrot $(BIN)/mandelbrot-x86
 
 $(BIN):
 	@mkdir -p $@
@@ -35,7 +35,11 @@ $(BUILD):
 
 
 # Binary Executable(s)
-$(BIN)/mandelbrot: $(BUILD)/mandelbrot.o $(SRC_LIBS) | $(BIN)
+$(BIN)/mandelbrot: $(BUILD)/mandelbrot.o $(SRC_LIBS) \
+	$(BUILD)/generate_mandelbrot_set.o | $(BIN)
+	$(CC) $(CFLAGS) $(LIBS) $^ -o $@
+$(BIN)/mandelbrot-x86: $(BUILD)/mandelbrot.o $(SRC_LIBS) \
+	$(BUILD)/generate_mandelbrot_set-x86.o | $(BIN)
 	$(CC) $(CFLAGS) $(LIBS) $^ -o $@
 
 # Object File(s)

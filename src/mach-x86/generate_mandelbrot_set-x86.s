@@ -1,7 +1,9 @@
 /*
-* generate_mandelbrot_set.s
+* generate_mandelbrot_set-x86.s
 * Author: Rushy Panchal
-* Description: Generates the Mandelbrot Set and returns an Image_T object.
+* Description: Generates the Mandelbrot Set and returns an Image_T object
+*	containing a visual representation of the set.
+*	This is src/generate_mandelbrot_set.c implemented in Mach-O x86.
 */
 
 	.data
@@ -24,7 +26,7 @@ img_memerr: .string "Memory error when creating image.\n"
 * Returns
 *	(Image_T) image of the set
 */
-	.globl _generate_mandelbrot_set_asm
+	.globl _generate_mandelbrot_set
 
 	/*
 	--- Local Variables/Parameters ---
@@ -59,7 +61,7 @@ img_memerr: .string "Memory error when creating image.\n"
 	/* 5 arguments of 8 bytes each + 4 bytes for alignment = 48 bytes */
 	.equ XMM_ARGSIZE, 48
 
-_generate_mandelbrot_set_asm:
+_generate_mandelbrot_set:
 	/* Stack alignment. */
 	subq $8, %rsp
 
