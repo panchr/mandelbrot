@@ -65,8 +65,8 @@ Image_T generate_mandelbrot_set(const size_t width, const size_t height,
 
 	/* Iterate through the pixels in the image, mapping each to a single
 	point in the xy-plane. */
-	for (x = xmin, w = 0; w < width; x += x_scale, w++) {
-		for (y = ymin, h = 0; h < height; y += y_scale, h++) {
+	for (x = xmax, w = width; w > 0; x -= x_scale, w--) {
+		for (y = ymax, h = height; h > 0; y -= y_scale, h--) {
 			/* Convert the (x, y) coordinate to a complex number. */
 			zreal = x;
 			zimag = y;
@@ -79,7 +79,7 @@ Image_T generate_mandelbrot_set(const size_t width, const size_t height,
 			in each iteration is done twice per unrolled iteration. */
 			if (odd_iter) crpow(&zreal, &zimag, exponent, x, y);
 
-			for (iter = 0; iter < half_iter; iter++) {
+			for (iter = half_iter; iter > 0; iter--) {
 				crpow(&zreal, &zimag, exponent, x, y);
 				crpow(&zreal, &zimag, exponent, x, y);
 
@@ -106,7 +106,7 @@ static inline void crpow(double *zreal, double *zimag, unsigned long exp,
 	double wimag = *zimag; /* imaginary part of result */
 	double wreal_temp; /* temporary storage of real part */
 
-	if (exp == 0) {
+	if (--exp == 0) {
 		*zreal = 1;
 		*zimag = 0;
 		return;
@@ -114,7 +114,7 @@ static inline void crpow(double *zreal, double *zimag, unsigned long exp,
 
 	/* We decrement from the beginning because w starts at z, and so
 	we only need to iterate exp - 1 times. */
-	while (--exp) {
+	while (exp--) {
 		wreal_temp = (*zreal * wreal - *zimag * wimag);
 		wimag = (*zreal * wimag + *zimag * wreal);
 		wreal = wreal_temp;
