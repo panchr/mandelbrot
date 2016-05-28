@@ -40,6 +40,7 @@ Image_T generate_mandelbrot_set(const size_t width, const size_t height,
 
 	const double limit = radius * radius; /* radius squared avoids taking the
 	square root in abs(z). */
+	const unsigned long num_iter = (exponent == 0) ? 0: iterations;
 
 	double x; /* x coordinate */
 	double y; /* y coordinate */
@@ -70,11 +71,13 @@ Image_T generate_mandelbrot_set(const size_t width, const size_t height,
 			zreal = x;
 			zimag = y;
 
+			if (x * x + y * y > limit) continue;
+
 			draw = true;
 			/* Iterate the function z^exponent + c as long as it stays within
 			the given limit. */
 
-			for (iter = iterations; iter > 0; iter--) {
+			for (iter = num_iter; iter > 0; iter--) {
 				crpow(&zreal, &zimag, exponent, x, y);
 
 				/* If it passes the limit, do not draw the point. Also, no need
@@ -101,11 +104,7 @@ static inline void crpow(double *zreal, double *zimag, unsigned long exp,
 	double wimag = *zimag; /* imaginary part of result */
 	double wreal_temp; /* temporary storage of real part */
 
-	if (exp-- == 0) {
-		*zreal = 1 + real_extra;
-		*zimag = imag_extra;
-		return;
-		}
+	exp--;
 
 	/* We decrement from the beginning because w starts at z, and so
 	we only need to iterate exp - 1 times. */
