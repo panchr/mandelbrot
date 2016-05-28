@@ -27,18 +27,13 @@ img_memerr: .string "Memory error when creating image.\n"
 	*	%r15 - image
 	*
 	* Floating Point (MMX) Registers
-	* 	%xmm0 - xmin
-	*	%xmm1 - xmax
-	*	%xmm2 - ymin
-	*	%xmm3 - ymax
-	*	%xmm4 - limit (radius squared)
-	*	%xmm5 - x
-	*	%xmm6 - y
-	* 	%xmm7 - x_scale
-	*	%xmm8 - y_scale
-	*	%xmm9 -  zreal
-	*	%xmm10 - zimag
-	*	%xmm11 ... %xmm15 - scratch
+	*	%xmm0 - xmin, ymin
+	*	%xmm1 - xmax, ymax
+	*	%xmm2 - x, y
+	*	%xmm3 - x_scale, y_scale
+	*	%xmm4 - zreal, zimag
+	*	%xmm5 - -, limit
+	*	%xmm6 ... %xmm15 - scratch, scratch
 	*/
 
 /*
@@ -98,22 +93,45 @@ _generate_mandelbrot_set:
 	cmpq $0, %r15
 	je memory_error
 
+	/* Copy input registers into separate ones temporarily. */
+	movapd %xmm0, %xmm5
+	movapd %xmm1, %xmm6
+	movapd %xmm2, %xmm7
+	movapd %xmm3, %xmm8
+	movapd %xmm4, %xmm9
+
+	/* Move xmin and ymin into the high and low segments of xmm0, respectively. */
+	movapd %xmm7, %xmm0
+	movq %xmm5, 8(%rsp)
+	movhpd 8(%rsp), %xmm0
+
+	/* Move xmax and ymax into the high and low segments of xmm1, respectively. */
+	movapd %xmm8, %xmm1
+	movq %xmm6, 8(%rsp)
+	movhpd 8(%rsp), %xmm1
+
 	## const double x_scale = (xmax - xmin) / width;
 	/* convert %rdi to a double into %xmm13 */
-	cvtsi2sdq %rdi, %xmm13
-	movapd %xmm1, %xmm7
-	subsd %xmm0, %xmm7
-	divsd %xmm13, %xmm7
+	cvtsi2sdq %rdi, %xmm12
+	movapd %xmm6, %xmm10
+	subsd %xmm5, %xmm10
+	divsd %xmm12, %xmm10
 
 	## const double y_scale = (ymax - ymin) / height;
 	/* convert %rsi to a double into %xmm13 */
 	cvtsi2sdq %rsi, %xmm14
-	movapd %xmm3, %xmm8
-	subsd %xmm2, %xmm8
-	divsd %xmm14, %xmm8
+	movapd %xmm8, %xmm11
+	subsd %xmm7, %xmm11
+	divsd %xmm14, %xmm11
+
+	/* Move x_scale and y_scale into the high and low segments of xmm3, respectively. */
+	movapd %xmm11, %xmm3
+	movq %xmm10, 8(%rsp)
+	movhpd 8(%rsp), %xmm3
 
 	## const double limit = radius * radius;
-	mulsd %xmm4, %xmm4
+	movapd %xmm4, %xmm5
+	mulsd %xmm5, %xmm5
 
 	## const bool odd_iter = (iterations % 2 == 1)
 	movb %dl, %r10b
@@ -123,9 +141,15 @@ _generate_mandelbrot_set:
 	/* iterations is never used again, so we just divide that by 2. */
 	shrq $1, %rdx
 
+	## if (exp == 0) half_iter = 0;
+	cmpq $0, %rcx
+	jnz exp_non_zero
+	movq $0, %rdx
+
+exp_non_zero:
 	## double x = xmax - x_scale;
-	movapd %xmm1, %xmm5
-	subsd %xmm7, %xmm5
+	movapd %xmm1, %xmm2
+	subpd %xmm3, %xmm2
 
 	## size_t w = width - 1;
 	movl %edi, %r11d
@@ -134,8 +158,8 @@ _generate_mandelbrot_set:
 /* Iterating from w = width to w = 0 */
 loop_width:
 	## double y = ymax - y_scale;
-	movapd %xmm3, %xmm6
-	subsd %xmm8, %xmm6
+	movsd %xmm1, %xmm2
+	subsd %xmm3, %xmm2
 
 	## size_t h = height - 1;
 	movl %esi, %r12d
@@ -144,10 +168,8 @@ loop_width:
 /* Iterating from h = height to h = 0 */
 loop_height:
 	## double zreal = x;
-	movapd %xmm5, %xmm9
-
 	## double zimag = y;
-	movapd %xmm6, %xmm10
+	movapd %xmm2, %xmm4
 
 	## bool draw = true;
 	movb $1, %r13b
@@ -170,15 +192,13 @@ even_iter:
 	call _crpow
 
 	## double temp = (zreal * zreal + zimag * zimag);
-	movapd %xmm9, %xmm11
-	mulsd %xmm9, %xmm11
-	movapd %xmm10, %xmm12
-	mulsd %xmm10, %xmm12
-	addsd %xmm11, %xmm12
+	movapd %xmm4, %xmm10
+	mulpd %xmm10, %xmm10
+	haddpd %xmm10, %xmm10
 
 	## if (temp <= limit) goto in_limit;
-	cmplesd %xmm4, %xmm12
-	movq %xmm12, %rax
+	cmplesd %xmm5, %xmm10
+	movq %xmm10, %rax
 	testq %rax, %rax
 	jnz in_limit
 
@@ -196,18 +216,13 @@ check_draw:
 	jz end_check_draw
 
 	/* Save the caller-saved registers. */
-	subq $80, %rsp
+	subq $48, %rsp
 	movq %xmm0, (%rsp)
 	movq %xmm1, 8(%rsp)
 	movq %xmm2, 16(%rsp)
 	movq %xmm3, 24(%rsp)
 	movq %xmm4, 32(%rsp)
 	movq %xmm5, 40(%rsp)
-	movq %xmm6, 48(%rsp)
-	movq %xmm7, 56(%rsp)
-	movq %xmm8, 64(%rsp)
-	movq %xmm9, 72(%rsp)
-	movq %xmm10, 80(%rsp)
 	pushq %rdi
 	pushq %rsi
 	pushq %rdx
@@ -231,22 +246,17 @@ check_draw:
 	popq %rdx
 	popq %rsi
 	popq %rdi
-	movq 80(%rsp), %xmm10
-	movq 72(%rsp), %xmm9
-	movq 64(%rsp), %xmm8
-	movq 56(%rsp), %xmm7
-	movq 48(%rsp), %xmm6
 	movq 40(%rsp), %xmm5
 	movq 32(%rsp), %xmm4
 	movq 24(%rsp), %xmm3
 	movq 16(%rsp), %xmm2
 	movq 8(%rsp), %xmm1
 	movq (%rsp), %xmm0
-	addq $80, %rsp
+	addq $48, %rsp
 
 end_check_draw:
 	## y -= y_scale;
-	subsd %xmm8, %xmm6
+	subsd %xmm3, %xmm2
 
 	## h--;
 	decl %r12d
@@ -254,7 +264,9 @@ end_check_draw:
 
 end_loop_height:
 	## x -= x_scale;
-	subsd %xmm7, %xmm5
+	/* Note: this also performs y -= y_scale, but that is irrelevant because
+	y is set to ymax - y_scale in the next iteration.*/
+	subpd %xmm3, %xmm2
 
 	## w--;
 	decl %r11d
@@ -287,10 +299,8 @@ memory_error:
 
 _crpow:
 	## double wreal = zreal;
-	movapd %xmm9, %xmm11
-
 	## double wimag = zimag;
-	movapd %xmm10, %xmm12
+	movapd %xmm4, %xmm10
 
 	movq %rcx, %rax
 
@@ -298,37 +308,29 @@ _crpow:
 	decq %rax
 	jnz _crpow_exp_loop
 
-	## zreal = 1;
-	movq $1, %rax
-	cvtsi2sdq %rax, %xmm9
-
-	## zimag = 0;
-	pxor %xmm10, %xmm10
 	ret
 
 _crpow_exp_loop:
 	## wreal_temp = (zreal * wreal - zimag * wimag);
-	/* wreal_temp = zreal * wreal */
-	movapd %xmm9, %xmm13
-	mulsd %xmm11, %xmm13
-	/* a = zimag * wimag */
-	movapd %xmm10, %xmm14
-	mulsd %xmm12, %xmm14
-	/* wreal_temp = wreal_temp - a */
-	subsd %xmm14, %xmm13
+	movapd %xmm10, %xmm11
+	mulpd %xmm4, %xmm11
+	hsubpd %xmm11, %xmm11
+	/* Negate %xmm11[0], because hsubpd results in
+	(zimag * wimag - zreal * wreal). */
+	movq %xmm11, %rax
+	negq %rax
+	movq %rax, %xmm11
 
-	## wimag = (zreal * wimag + zimag * wreal);
-	/* wimag = zreal * wimag */
-	movapd %xmm9, %xmm14
-	mulsd %xmm12, %xmm14
-	/* b = zimag * wreal */
+	## wimag_temp = (zreal * wimag + zimag * wreal);
 	movapd %xmm10, %xmm12
-	mulsd %xmm11, %xmm12
-	/* wimag = wimag + b */
-	addsd %xmm14, %xmm12
+	shufpd $1, %xmm10, %xmm12
+	mulpd %xmm4, %xmm12
+	haddpd %xmm12, %xmm12
 
 	## wreal = wreal_temp;
-	movapd %xmm13, %xmm11
+	movapd %xmm11, %xmm10
+	## wimag = wimag_temp;
+	movsd %xmm12, %xmm10
 
 	## while (exp--)
 	decq %rax
@@ -336,11 +338,8 @@ _crpow_exp_loop:
 
 _crpow_return:
 	## zreal = wreal + x;
-	movapd %xmm11, %xmm9
-	addsd %xmm5, %xmm9
-
 	## zimag = wreal + y;
-	movapd %xmm12, %xmm10
-	addsd %xmm6, %xmm10
+	movapd %xmm10, %xmm4
+	addpd %xmm2, %xmm4
 
 	ret
