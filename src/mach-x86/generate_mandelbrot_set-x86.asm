@@ -26,7 +26,7 @@ img_memerr: .string "Memory error when creating image.\n"
 	*	%r14 - iter
 	*	%r15 - image
 	*
-	* Floating Point (MMX) Registers
+	* Floating Point (MMX) Registers (high, low)
 	*	%xmm0 - xmin, ymin
 	*	%xmm1 - xmax, ymax
 	*	%xmm2 - x, y
@@ -94,40 +94,33 @@ _generate_mandelbrot_set:
 	je memory_error
 
 	/* Copy input registers into separate ones temporarily. */
-	movapd %xmm0, %xmm5
-	movapd %xmm1, %xmm6
-	movapd %xmm2, %xmm7
-	movapd %xmm3, %xmm8
-	movapd %xmm4, %xmm9
+	movapd %xmm0, %xmm5 /* xmin */
+	movapd %xmm1, %xmm6 /* xmax */
+	movapd %xmm2, %xmm7 /* ymin */
+	movapd %xmm3, %xmm8 /* ymax */
+	movapd %xmm4, %xmm9 /* radius */
 
 	/* Move xmin and ymin into the high and low segments of xmm0, respectively. */
-	movapd %xmm7, %xmm0
-	movq %xmm5, 8(%rsp)
-	movhpd 8(%rsp), %xmm0
+	unpcklpd %xmm2, %xmm0
 
 	/* Move xmax and ymax into the high and low segments of xmm1, respectively. */
-	movapd %xmm8, %xmm1
-	movq %xmm6, 8(%rsp)
-	movhpd 8(%rsp), %xmm1
+	unpcklpd %xmm3, %xmm1
 
 	## const double x_scale = (xmax - xmin) / width;
-	/* convert %rdi to a double into %xmm13 */
+	/* convert %rdi to a double into %xmm12 */
 	cvtsi2sdq %rdi, %xmm12
-	movapd %xmm6, %xmm10
-	subsd %xmm5, %xmm10
-	divsd %xmm12, %xmm10
+	subsd %xmm5, %xmm6
+	divsd %xmm12, %xmm6
 
 	## const double y_scale = (ymax - ymin) / height;
-	/* convert %rsi to a double into %xmm13 */
+	/* convert %rsi to a double into %xmm12 */
 	cvtsi2sdq %rsi, %xmm14
-	movapd %xmm8, %xmm11
-	subsd %xmm7, %xmm11
-	divsd %xmm14, %xmm11
+	subsd %xmm7, %xmm8
+	divsd %xmm14, %xmm8
 
 	/* Move x_scale and y_scale into the high and low segments of xmm3, respectively. */
-	movapd %xmm11, %xmm3
-	movq %xmm10, 8(%rsp)
-	movhpd 8(%rsp), %xmm3
+	movapd %xmm8, %xmm3
+	unpcklpd %xmm6, %xmm3
 
 	## const double limit = radius * radius;
 	movapd %xmm4, %xmm5
@@ -302,10 +295,10 @@ _crpow:
 	## double wimag = zimag;
 	movapd %xmm4, %xmm10
 
-	movq %rcx, %rax
+	movq %rcx, %r8
 
 	## if (exp-- != 0) goto _crpow_exp_loop
-	decq %rax
+	decq %r8
 	jnz _crpow_exp_loop
 
 	ret
@@ -314,16 +307,14 @@ _crpow_exp_loop:
 	## wreal_temp = (zreal * wreal - zimag * wimag);
 	movapd %xmm10, %xmm11
 	mulpd %xmm4, %xmm11
+	/* Because hsubpd computes low - high, we have to first
+	shuffle the elements. */
+	shufpd $1, %xmm11, %xmm11
 	hsubpd %xmm11, %xmm11
-	/* Negate %xmm11[0], because hsubpd results in
-	(zimag * wimag - zreal * wreal). */
-	movq %xmm11, %rax
-	negq %rax
-	movq %rax, %xmm11
 
 	## wimag_temp = (zreal * wimag + zimag * wreal);
 	movapd %xmm10, %xmm12
-	shufpd $1, %xmm10, %xmm12
+	shufpd $1, %xmm12, %xmm12
 	mulpd %xmm4, %xmm12
 	haddpd %xmm12, %xmm12
 
@@ -333,8 +324,8 @@ _crpow_exp_loop:
 	movsd %xmm12, %xmm10
 
 	## while (exp--)
-	decq %rax
-	jnz _crpow_exp_loop
+	decq %r8
+	jg _crpow_exp_loop
 
 _crpow_return:
 	## zreal = wreal + x;
