@@ -263,7 +263,8 @@ memory_error:
 * number to the result.
 * Note: Modifies the complex number z in place, but uses additional registers
 *	during computation as temporary stores. Treats high quadword as real
-*	part and low quadword as imaginary ({real, imag}).
+*	part and low quadword as imaginary ({real, imag}). Note that the computations,
+*	however, operate on flipped registers of form {imag, real}.
 * Parameters
 *	(%xmm11) {double, double} z - complex number to raise to power
 *	(%xmm10) {double, double} extra - extra complex number to add to result
@@ -271,10 +272,10 @@ memory_error:
 * Returns (%xmm11)
 *	({double, double}) z^exponent + extra
 * Registers Used
-*	(%xmm0) {double, double} w - iterated value of z^exponent
+*	(%xmm0) {double, double} w - iterated value of z^exponent (flipped)
 *	(%xmm1) {double, double} z_flipped - flipped version of z ({imag, real})
 *	(%xmm2) {double, double} wimag_temp -  temporary storage of
-*		w_imag during iteration
+*		w_imag during iteration (flipped)
 *	(%r8) unsigned long exp - current iterated exponent
 */
 _crpow:
@@ -285,9 +286,10 @@ _crpow:
 	## double zfr = zimag;
 	## double zfi = zreal;
 	/* Create a flipped version of xmm11 to use when calculating the imaginary
-	part. */
-	movapd %xmm11, %xmm1
-	shufpd $1, %xmm1, %xmm1
+	part. This has an added benefit when larger exponents are used, as it only
+	has two additional shuffles (as opposed to one shuffle per iteration). */
+	shufpd $1, %xmm0, %xmm0
+	movapd %xmm0, %xmm1
 
 	## unsigned long exp = exponent;
 	movq %rbx, %r8
@@ -297,21 +299,18 @@ _crpow:
 	jz _crpow_return
 
 _crpow_exp_loop:
-	## wimag_temp = wimag;
+	## wreal_temp = wreal;
 	movapd %xmm0, %xmm2
 
-	## wreal = (zreal * wreal - zimag * wimag);
+	## wimag = (zreal * wimag + zimag * wreal);
 	mulpd %xmm11, %xmm0
-	/* Because hsubpd computes low - high, we have to first
-	shuffle the elements. */
-	shufpd $1, %xmm0, %xmm0
-	hsubpd %xmm0, %xmm0
+	haddpd %xmm0, %xmm0
 
-	## wimag_temp = (zreal * wimag + zimag * wreal);
+	## wreal_temp = (zreal * wreal - zimag * wimag);
 	mulpd %xmm1, %xmm2
-	haddpd %xmm2, %xmm2
+	hsubpd %xmm2, %xmm2
 
-	## wimag = wimag_temp;
+	## wreal = wreal_temp;
 	movsd %xmm2, %xmm0
 
 	## while (exp--)
@@ -319,6 +318,9 @@ _crpow_exp_loop:
 	jg _crpow_exp_loop
 
 _crpow_return:
+	/* Move the shuffled items into the proper order. */
+	shufpd $1, %xmm0, %xmm0
+
 	## zreal = wreal + x;
 	## zimag = wreal + y;
 	movapd %xmm0, %xmm11
