@@ -15,14 +15,13 @@ img_memerr: .string "Memory error when creating image.\n"
 	/*
 	--- Local Variables/Parameters ---
 	* Regular Registers
-	*	%edi - width
+	*	%edi - width*
 	*	%esi - height
-	*	%rdx - iterations
-	*	%rcx - exp
+	*	%rbp - iterations
+	*	%rbx - exp
 	*	%r10b - odd_iter
-	*	%r11d - w
-	*	%r12d - h
-	*	%r13b - draw (not used)
+	*	%r12d - w
+	*	%r13d - h
 	*	%r14 - iter
 	*	%r15 - image
 	*
@@ -33,7 +32,12 @@ img_memerr: .string "Memory error when creating image.\n"
 	*	%xmm9 - -, limit
 	*	%xmm10 - x, y
 	*	%xmm11 - zreal, zimag
+	*
+	*	* = not preserved
 	*/
+
+	.equ STACK_ALIGNMENT, 8
+	.equ CALLER_SAVED_XMM, 48
 
 /*
 * Generate the Mandelbrot Set and return an image.
@@ -51,46 +55,15 @@ img_memerr: .string "Memory error when creating image.\n"
 *	(Image_T) image of the set
 */
 _generate_mandelbrot_set:
-	/* Save the callee-saving registers. */
+	/* Save the callee-saved registers. */
+	pushq %rbx
+	pushq %rbp
 	pushq %r12
 	pushq %r13
 	pushq %r14
 	pushq %r15
 	/* Stack alignment. */
-	subq $8, %rsp
-
-	/* Save the caller-saved registers. */
-	subq $48, %rsp
-	movq %xmm0, (%rsp)
-	movq %xmm1, 8(%rsp)
-	movq %xmm2, 16(%rsp)
-	movq %xmm3, 24(%rsp)
-	movq %xmm4, 32(%rsp)
-	pushq %rdi
-	pushq %rsi
-	pushq %rdx
-	pushq %rcx
-
-	/* width and height are already in %rdi and %rsi, respectively. */
-	## image = Image_new(width, height);
-	call _Image_new
-	movq %rax, %r15
-
-	/* Restore the caller-saved registers. */
-	popq %rcx
-	popq %rdx
-	popq %rsi
-	popq %rdi
-	movq 32(%rsp), %xmm4
-	movq 24(%rsp), %xmm3
-	movq 16(%rsp), %xmm2
-	movq 8(%rsp), %xmm1
-	movq (%rsp), %xmm0
-	addq $48, %rsp
-
-	## if (image == NULL) goto memory_error;
-	cmpq $0, %r15
-	je memory_error
+	subq $STACK_ALIGNMENT, %rsp
 
 	/* Move xmin and ymin into the high and low segments of xmm7,
 	respectively. */
@@ -128,12 +101,17 @@ _generate_mandelbrot_set:
 
 	## const unsigned long half_iter = iterations / 2;
 	/* iterations is never used again, so we just divide that by 2. */
-	shrq $1, %rdx
+	movq %rdx, %rbp
+	shrq $1, %rbp
 
-	## if (exp == 0) half_iter = 0;
-	cmpq $0, %rcx
-	jnz exp_non_zero
-	movq $0, %rdx
+	## if (--exp != -1) goto exp_non_zero;
+	movq %rcx, %rbx
+	decq %rbx
+	cmpq $-1, %rbx
+	jne exp_non_zero
+
+	## else half_iter = 0;
+	movq $0, %rbp
 
 exp_non_zero:
 	## double x = xmax - x_scale;
@@ -144,17 +122,36 @@ exp_non_zero:
 	subsd %xmm8, %xmm7
 
 	## size_t w = width - 1;
-	movl %edi, %r11d
-	decl %r11d
+	movl %edi, %r12d
+	decl %r12d
+
+	/* Save the caller-saved registers that need to be preserved. */
+	subq $8, %rsp
+	pushq %rsi
+
+	/* width and height are already in %rdi and %rsi, respectively. */
+	## image = Image_new(width, height);
+	call _Image_new
+	movq %rax, %r15
+
+	/* Restore the caller-saved registers. */
+	popq %rsi
+	addq $8, %rsp
+
+	## height -= 1;
+	decl %esi
+
+	## if (image == NULL) goto memory_error;
+	cmpq $0, %r15
+	je memory_error
 
 /* Iterating from w = width to w = 0 */
 loop_width:
 	## double y = ymax;
 	movsd %xmm7, %xmm10
 
-	## size_t h = height - 1;
-	movl %esi, %r12d
-	decl %r12d
+	## size_t h = height;
+	movl %esi, %r13d
 
 /* Iterating from h = height to h = 0 */
 loop_height:
@@ -163,7 +160,7 @@ loop_height:
 	movapd %xmm10, %xmm11
 
 	## unsigned long iter = half_iter;
-	movq %rdx, %r14
+	movq %rbp, %r14
 
 	## if (! odd_iter) goto even_iter;
 	cmpb $0, %r10b
@@ -185,7 +182,7 @@ even_iter:
 	haddpd %xmm0, %xmm0
 
 	## if (temp <= limit) goto in_limit;
-	cmpsd $2, %xmm9, %xmm0
+	cmplesd %xmm9, %xmm0
 	movq %xmm0, %rax
 	testq %rax, %rax
 	jnz in_limit
@@ -200,36 +197,28 @@ in_limit:
 
 draw_point:
 	/* Save the caller-saved registers. */
-	pushq %rdi
 	pushq %rsi
-	pushq %rdx
-	pushq %rcx
 	pushq %r10
-	pushq %r11
 
 	## Image_setPixel(image, w, h, 0, 0, 255);
 	movq %r15, %rdi
-	movl %r11d, %esi
-	movl %r12d, %edx
+	movl %r12d, %esi
+	movl %r13d, %edx
 	movb $0, %cl
 	movb $0, %r8b
 	movb $255, %r9b
 	call _Image_setPixel
 
 	/* Restore the caller-saved registers. */
-	popq %r11
 	popq %r10
-	popq %rcx
-	popq %rdx
 	popq %rsi
-	popq %rdi
 
 end_check_draw:
 	## y -= y_scale;
 	subsd %xmm8, %xmm10
 
 	## h--;
-	decl %r12d
+	decl %r13d
 	jnz loop_height
 
 end_loop_height:
@@ -239,11 +228,11 @@ end_loop_height:
 	subpd %xmm8, %xmm10
 
 	## w--;
-	decl %r11d
+	decl %r12d
 	jnz loop_width
 
 _generate_mandelbrot_set_return:
-	addq $8, %rsp
+	addq $STACK_ALIGNMENT, %rsp
 
 	## return image;
 	movq %r15, %rax
@@ -252,6 +241,8 @@ _generate_mandelbrot_set_return:
 	popq %r14
 	popq %r13
 	popq %r12
+	popq %rbp
+	popq %rbx
 
 	ret
 
@@ -267,36 +258,59 @@ memory_error:
 	movl $1, %edi
 	call _exit
 
+/*
+* Raise a complex number to a real integer power and add an extra complex
+* number to the result.
+* Note: Modifies the complex number z in place, but uses additional registers
+*	during computation as temporary stores. Treats high quadword as real
+*	part and low quadword as imaginary ({real, imag}).
+* Parameters
+*	(%xmm11) {double, double} z - complex number to raise to power
+*	(%xmm10) {double, double} extra - extra complex number to add to result
+*	(%rbx) unsigned long exponent - real power
+* Returns (%xmm11)
+*	({double, double}) z^exponent + extra
+* Registers Used
+*	(%xmm0) {double, double} w - iterated value of z^exponent
+*	(%xmm1) {double, double} z_flipped - flipped version of z ({imag, real})
+*	(%xmm2) {double, double} wimag_temp -  temporary storage of
+*		w_imag during iteration
+*	(%r8) unsigned long exp - current iterated exponent
+*/
 _crpow:
 	## double wreal = zreal;
 	## double wimag = zimag;
 	movapd %xmm11, %xmm0
 
-	movq %rcx, %r8
+	## double zfr = zimag;
+	## double zfi = zreal;
+	/* Create a flipped version of xmm11 to use when calculating the imaginary
+	part. */
+	movapd %xmm11, %xmm1
+	shufpd $1, %xmm1, %xmm1
 
-	## if (exp-- != 0) goto _crpow_exp_loop
-	decq %r8
-	jnz _crpow_exp_loop
+	## unsigned long exp = exponent;
+	movq %rbx, %r8
 
-	ret
+	## if (exp == 0) goto _crpow_exp_loop
+	cmpq $0, %r8
+	jz _crpow_return
 
 _crpow_exp_loop:
-	## wreal_temp = (zreal * wreal - zimag * wimag);
-	movapd %xmm0, %xmm1
-	mulpd %xmm11, %xmm1
+	## wimag_temp = wimag;
+	movapd %xmm0, %xmm2
+
+	## wreal = (zreal * wreal - zimag * wimag);
+	mulpd %xmm11, %xmm0
 	/* Because hsubpd computes low - high, we have to first
 	shuffle the elements. */
-	shufpd $1, %xmm1, %xmm1
-	hsubpd %xmm1, %xmm1
+	shufpd $1, %xmm0, %xmm0
+	hsubpd %xmm0, %xmm0
 
 	## wimag_temp = (zreal * wimag + zimag * wreal);
-	movapd %xmm0, %xmm2
-	shufpd $1, %xmm2, %xmm2
-	mulpd %xmm11, %xmm2
+	mulpd %xmm1, %xmm2
 	haddpd %xmm2, %xmm2
 
-	## wreal = wreal_temp;
-	movapd %xmm1, %xmm0
 	## wimag = wimag_temp;
 	movsd %xmm2, %xmm0
 
