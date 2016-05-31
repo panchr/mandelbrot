@@ -127,19 +127,23 @@ _generate_mandelbrot_set:
 	movapd %xmm1, %xmm5
 	subsd %xmm7, %xmm5
 
+	## ymax -= y_scale;
+	subsd %xmm8, %xmm3
+
 	## size_t w = width - 1;
 	movl %edi, %r11d
 	decl %r11d
 
+	## height -= 1;
+	decl %esi
+
 /* Iterating from w = width to w = 0 */
 loop_width:
-	## double y = ymax - y_scale;
+	## double y = ymax;
 	movapd %xmm3, %xmm6
-	subsd %xmm8, %xmm6
 
-	## size_t h = height - 1;
+	## size_t h = height;
 	movl %esi, %r12d
-	decl %r12d
 
 /* Iterating from h = height to h = 0 */
 loop_height:
@@ -149,22 +153,19 @@ loop_height:
 	## double zimag = y;
 	movapd %xmm6, %xmm10
 
-	## bool draw = true;
-	movb $1, %r13b
-
 	## unsigned long iter = half_iter;
 	movq %rdx, %r14
 
-	## if (! odd_iter) goto even_iter;
+	## if (! odd_iter) goto iter_loop;
 	cmpb $0, %r10b
-	je even_iter
+	je iter_loop
 
 	/* Odd number of iterations. */
 	## crpow(&zreal, &zimag, exponent, x, y);
 	call _crpow
 
 /* Even number of iterations.*/
-even_iter:
+iter_loop:
 	## crpow(&zreal, &zimag, exponent, x, y);
 	call _crpow
 	call _crpow
@@ -180,21 +181,14 @@ even_iter:
 	cmplesd %xmm4, %xmm12
 	movq %xmm12, %rax
 	testq %rax, %rax
-	jnz in_limit
-
-	## draw = false;
-	movb $0, %r13b
-	jmp check_draw
+	jz end_draw_point
 
 in_limit:
-	## if (--iter != 0) goto even_iter;
+	## if (--iter != 0) goto iter_loop;
 	decq %r14
-	jnz even_iter
+	jnz iter_loop
 
-check_draw:
-	cmpb $0, %r13b
-	jz end_check_draw
-
+draw_point:
 	/* Save the caller-saved registers. */
 	subq $80, %rsp
 	movq %xmm0, (%rsp)
@@ -244,7 +238,7 @@ check_draw:
 	movq (%rsp), %xmm0
 	addq $80, %rsp
 
-end_check_draw:
+end_draw_point:
 	## y -= y_scale;
 	subsd %xmm8, %xmm6
 
@@ -298,12 +292,6 @@ _crpow:
 	decq %rax
 	jnz _crpow_exp_loop
 
-	## zreal = 1;
-	movq $1, %rax
-	cvtsi2sdq %rax, %xmm9
-
-	## zimag = 0;
-	pxor %xmm10, %xmm10
 	ret
 
 _crpow_exp_loop:
