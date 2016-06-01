@@ -98,13 +98,15 @@ _generate_mandelbrot_set:
 	movq (%rsp), %xmm0
 	addq $XMM_SAVE_IMG_NEW, %rsp
 
-	/* Duplicate the register data in xmm0 and xmm2 */
-	movddup %xmm0, %xmm0
-	movddup %xmm2, %xmm2
-
 	## if (image == NULL) goto memory_error;
 	cmpq $0, %r15
 	je memory_error
+
+	/* Duplicate the register data in xmm0 and xmm2.
+	Note: this must be done after the call of Image_new otherwise both the high
+	and low double quadwords of the registers must be saved to the stack. */
+	movddup %xmm0, %xmm0
+	movddup %xmm2, %xmm2
 
 	## const double x_scale = (xmax - xmin) / width;
 	/* convert %rdi to a double into %xmm5 */
@@ -351,6 +353,7 @@ _crpow:
 
 	ret
 
+/* Primary exponentiation loop for computing z^exponent. */
 _crpow_exp_loop:
 	## wreal_temp = (zreal * wreal - zimag * wimag);
 	/* wreal_temp = zreal * wreal */
@@ -379,6 +382,7 @@ _crpow_exp_loop:
 	decq %rax
 	jnz _crpow_exp_loop
 
+/* Return the computed value after adding in the extra complex number, c. */
 _crpow_return:
 	## zreal = wreal + x;
 	movapd %xmm3, %xmm14
