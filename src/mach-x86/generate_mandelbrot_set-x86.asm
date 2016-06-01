@@ -233,14 +233,9 @@ iter_loop:
 	jz draw_pointB
 
 	## Image_setPixel(image, w-1, h, 0, 0, 255);
-	movq %r15, %rdi
-	movl %r12d, %esi
-	decl %esi
-	movl %r13d, %edx
-	movb $0, %cl
-	movb $0, %r8b
-	movb $255, %r9b
-	call _Image_setPixel
+	decl %r12d
+	call _image_draw_pixel
+	incl %r12d
 
 /* Try to draw pointB */
 draw_pointB:
@@ -249,13 +244,7 @@ draw_pointB:
 	jz end_draw
 
 	## Image_setPixel(image, w, h, 0, 0, 255);
-	movq %r15, %rdi
-	movl %r12d, %esi
-	movl %r13d, %edx
-	movb $0, %cl
-	movb $0, %r8b
-	movb $255, %r9b
-	call _Image_setPixel
+	call _image_draw_pixel
 
 /* End of pixel drawing for both points. */
 end_draw:
@@ -315,6 +304,27 @@ memory_error:
 	## exit(EXIT_FAILURE);
 	movl $1, %edi
 	call _exit
+
+/* --- Internal Functions ---*/
+
+/*
+* Draw a pixel onto the image.
+* Note: does not modify any of the input registers.
+* Parameters
+*	(%r15) image - image to draw onto
+*	(%r12d) row - row to draw onto
+*	(%r13d) col - column to draw onto
+*/
+_image_draw_pixel:
+	movq %r15, %rdi
+	movl %r12d, %esi
+	movl %r13d, %edx
+	movb $0, %cl
+	movb $0, %r8b
+	movb $255, %r9b
+	call _Image_setPixel
+
+	ret
 
 /*
 * Raise a complex number to a real integer exponent.
