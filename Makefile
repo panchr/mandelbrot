@@ -32,6 +32,12 @@ $(BUILD)/%.o: %.asm | $(BUILD)
 ### Build Tasks
 all: $(BIN)/mandelbrot $(BIN)/mandelbrot-x86
 
+debug: CFLAGS=-g
+debug: all
+
+profile: CFLAGS=-pg
+profile: all
+
 $(BIN):
 	@mkdir -p $@
 $(BUILD):
