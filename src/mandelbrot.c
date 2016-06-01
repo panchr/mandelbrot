@@ -32,6 +32,9 @@
 *	size_t height - height of the image in pixels (default: 1000)
 *	unsigned long iterations - number of iterations to use per point (default: 100)
 *	unsigned long exponent - exponent of the Mandelbrot Set (default: 2)
+*
+* Note:
+*	width and height should be even - they are made even if not provided as such.
 */
 int main(int argc, char *argv[]) {
 	/* Command-line arguments. */
@@ -61,6 +64,16 @@ int main(int argc, char *argv[]) {
 		case 2: /* argv[1] is the path */
 			path = argv[1];
 			break;
+		}
+
+	/* Width and height must be even for parallel processing. */
+	if (width % 2 == 1) {
+		printf("Width was decreased by one so that it is even.\n");
+		width--;
+		}
+	if (height % 2 == 1) {
+		printf("Height was decreased by one so that it is even.\n");
+		height--;
 		}
 
 	printf("Configuration\n\tFile: %s\n\tSize (Width x Height): %lu x %lu px\n\

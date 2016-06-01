@@ -55,7 +55,7 @@ $(BIN)/mandelbrot-x86: $(BUILD)/mandelbrot.o $(SRC_LIBS) \
 $(BUILD)/image.o: image.c image.h
 
 ### Other Tasks
-test: CFLAGS=-O3
+test: CFLAGS=-O3 -D NDEBUG
 test: all
 	time $(BIN)/mandelbrot mandelbrot.png $(SIZE) $(SIZE) $(ITER) $(EXP)
 	time $(BIN)/mandelbrot-x86 mandelbrot-x86.png $(SIZE) $(SIZE) $(ITER) $(EXP)

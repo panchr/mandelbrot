@@ -17,8 +17,10 @@ img_memerr: .string "Memory error when creating image.\n"
 	* Regular Registers
 	*	%edi - width
 	*	%esi - height
-	*	%rbx - iterations
+	*	%rdx - iterations
 	*	%rcx - exp
+	*	%bl - drawA
+	*	%bh - drawB
 	*	%bpl - odd_iter
 	*	%r12d - w
 	*	%r13d - h
@@ -40,7 +42,7 @@ img_memerr: .string "Memory error when creating image.\n"
 	*/
 
 	.equ STACK_ALIGNMENT, 8
-	.equ XMM_SAVE_IMG_NEW, 24
+	.equ XMM_SAVE_IMG_NEW, 16
 
 /*
 * Generate the Mandelbrot Set and return an image.
@@ -69,10 +71,9 @@ _generate_mandelbrot_set:
 	subq $STACK_ALIGNMENT, %rsp
 
 	/* Move all arguments into the appropriate registers. */
-	movq %rdx, %rbx
-	movapd %xmm1, %xmm7 /* xmax */
-	movapd %xmm3, %xmm8 /* ymax */
-	movapd %xmm4, %xmm9 /* limit */
+	movddup %xmm1, %xmm7 /* xmax */
+	movddup %xmm3, %xmm8 /* ymax */
+	movddup %xmm4, %xmm9 /* limit */
 
 	/* Save the caller-saved registers. */
 	subq $XMM_SAVE_IMG_NEW, %rsp
@@ -81,6 +82,7 @@ _generate_mandelbrot_set:
 	pushq %rdi
 	pushq %rsi
 	pushq %rcx
+	pushq %rdx
 
 	/* width and height are already in %rdi and %rsi, respectively. */
 	## image = Image_new(width, height);
@@ -88,12 +90,17 @@ _generate_mandelbrot_set:
 	movq %rax, %r15
 
 	/* Restore the caller-saved registers. */
+	popq %rdx
 	popq %rcx
 	popq %rsi
 	popq %rdi
 	movq 8(%rsp), %xmm2
 	movq (%rsp), %xmm0
 	addq $XMM_SAVE_IMG_NEW, %rsp
+
+	/* Duplicate the register data in xmm0 and xmm2 */
+	movddup %xmm0, %xmm0
+	movddup %xmm2, %xmm2
 
 	## if (image == NULL) goto memory_error;
 	cmpq $0, %r15
@@ -102,19 +109,21 @@ _generate_mandelbrot_set:
 	## const double x_scale = (xmax - xmin) / width;
 	/* convert %rdi to a double into %xmm5 */
 	cvtsi2sdq %rdi, %xmm5
+	movddup %xmm5, %xmm5
 	movapd %xmm7, %xmm12
-	subsd %xmm0, %xmm12
-	divsd %xmm5, %xmm12
+	subpd %xmm0, %xmm12
+	divpd %xmm5, %xmm12
 
 	## const double y_scale = (ymax - ymin) / height;
 	/* convert %rsi to a double into %xmm5 */
 	cvtsi2sdq %rsi, %xmm5
+	movddup %xmm5, %xmm5
 	movapd %xmm8, %xmm13
-	subsd %xmm2, %xmm13
-	divsd %xmm5, %xmm13
+	subpd %xmm2, %xmm13
+	divpd %xmm5, %xmm13
 
 	## const double limit = radius * radius;
-	mulsd %xmm9, %xmm9
+	mulpd %xmm9, %xmm9
 
 	## const bool odd_iter = (iterations % 2 == 1)
 	movb %dl, %bpl
@@ -122,14 +131,20 @@ _generate_mandelbrot_set:
 
 	## const unsigned long half_iter = iterations / 2;
 	/* iterations is never used again, so we just divide that by 2. */
-	shrq $1, %rbx
+	shrq $1, %rdx
 
 	## double x = xmax - x_scale;
 	movapd %xmm7, %xmm10
+	subpd %xmm12, %xmm10
+	/* Start point A lower so that it is distinct from point B. */
 	subsd %xmm12, %xmm10
 
+	/* We want to move two positions over each time to avoid repeating points. */
+	## x_scale += x_scale;
+	addpd %xmm12, %xmm12
+
 	## ymax -= y_scale;
-	subsd %xmm13, %xmm8
+	subpd %xmm13, %xmm8
 
 	## size_t w = width - 1;
 	movl %edi, %r12d
@@ -155,7 +170,13 @@ loop_height:
 	movapd %xmm11, %xmm15
 
 	## unsigned long iter = half_iter;
-	movq %rbx, %r14
+	movq %rdx, %r14
+
+	## bool drawA = true;
+	movb $1, %bl
+
+	## bool drawB = true;
+	movb $1, %bh
 
 	## if (! odd_iter) goto iter_loop;
 	cmpb $0, %bpl
@@ -165,35 +186,65 @@ loop_height:
 	## crpow(&zreal, &zimag, exponent, x, y);
 	call _crpow
 
-/* Even number of iterations.*/
+/* Primary iteration loop for a given point.*/
 iter_loop:
 	## crpow(&zreal, &zimag, exponent, x, y);
 	call _crpow
 	call _crpow
 
-	## double temp = (zreal * zreal + zimag * zimag);
+	## double temp{A, B} = (zreal * zreal + zimag * zimag);
 	movapd %xmm14, %xmm3
-	mulsd %xmm14, %xmm3
+	mulpd %xmm14, %xmm3
 	movapd %xmm15, %xmm4
-	mulsd %xmm15, %xmm4
-	addsd %xmm3, %xmm4
-
-	## if (temp <= limit) goto in_limit;
-	cmplesd %xmm9, %xmm4
+	mulpd %xmm15, %xmm4
+	addpd %xmm3, %xmm4
+	
+	## drawA = drawA && (tempA <= limit);
+	cmplepd %xmm9, %xmm4
 	movq %xmm4, %rax
-	testq %rax, %rax
-	jz end_draw_point
+	andb %al, %bl
 
-in_limit:
+	## drawB = drawB && (tempB <= limit);
+	shufpd $1, %xmm4, %xmm4
+	movq %xmm4, %rax
+	andb %al, %bh
+
+	## if (! (drawA | drawB)) goto end_loop_height;
+	movb %bl, %al
+	orb %bh, %al
+	testb %al, %al
+	jz end_loop_height
+
+	/* Point is in the limit */
 	## if (--iter != 0) goto iter_loop;
 	decq %r14
 	jnz iter_loop
 
-draw_point:
 	/* Save the caller-saved registers. */
 	pushq %rdi
 	pushq %rsi
 	pushq %rcx
+	pushq %rdx
+
+	## if (! drawA) goto draw_pointB;
+	testb %bl, %bl
+	jz draw_pointB
+
+	## Image_setPixel(image, w-1, h, 0, 0, 255);
+	movq %r15, %rdi
+	movl %r12d, %esi
+	decl %esi
+	movl %r13d, %edx
+	movb $0, %cl
+	movb $0, %r8b
+	movb $255, %r9b
+	call _Image_setPixel
+
+/* Try to draw pointB */
+draw_pointB:
+	## if (! drawB) goto end_draw;
+	testb %bh, %bh
+	jz end_draw
 
 	## Image_setPixel(image, w, h, 0, 0, 255);
 	movq %r15, %rdi
@@ -204,27 +255,37 @@ draw_point:
 	movb $255, %r9b
 	call _Image_setPixel
 
+/* End of pixel drawing for both points. */
+end_draw:
 	/* Restore the caller-saved registers. */
+	popq %rdx
 	popq %rcx
 	popq %rsi
 	popq %rdi
 
-end_draw_point:
+/* End of height iteration. */
+end_loop_height:
 	## y -= y_scale;
-	subsd %xmm13, %xmm11
+	subpd %xmm13, %xmm11
 
 	## h--;
 	decl %r13d
 	jnz loop_height
 
-end_loop_height:
+/* End of width iteration. */
+end_loop_width:
 	## x -= x_scale;
-	subsd %xmm12, %xmm10
+	subpd %xmm12, %xmm10
 
-	## w--;
+	## if (--w == 0) goto _generate_mandelbrot_set_return;
 	decl %r12d
-	jnz loop_width;
+	jz _generate_mandelbrot_set_return
 
+	## if (--w != 0) goto loop_width;
+	decl %r12d
+	jnz loop_width
+
+/* Return the image and cleanup the stack frame. */
 _generate_mandelbrot_set_return:
 	addq $STACK_ALIGNMENT, %rsp
 
@@ -240,6 +301,7 @@ _generate_mandelbrot_set_return:
 
 	ret
 
+/* Memory error occured. */
 memory_error:
 	## fprintf(stderr, "Memory error when creating image.\n");
 	movq ___stderrp@GOTPCREL(%rip), %rdi
@@ -252,6 +314,27 @@ memory_error:
 	movl $1, %edi
 	call _exit
 
+/*
+* Raise a complex number to a real integer exponent.
+* Note: z^exponent is stored back into z.
+* Parameters
+*	(%xmm14) zreal - real part of complex number to exponentiate
+*	(%xmm15) zimag - imaginary part of complex number to exponentiate
+*	(%rcx) exponent - real integer exponent to raise z to
+*	(%xmm10) creal - real part of extra complex number to add to result
+*	(%xmm11) cimag - imaginary part of extra complex number to add to result
+* Returns
+*	(%xmm14) real part of z^exponent + c
+*	(%xmm15) imaginary part of z^exponent + c
+*
+* Temporary Registers Used
+*	(%xmm3) wreal - iterated real part of z^exponent
+*	(%xmm4) wimag - iterated imaginary part of z^exponent
+*	(%rax) exp - iterated exponent
+*	(%xmm5) wreal_temp - wreal during iteration
+*	(%xmm6) a - computation step for calculating wreal_temp
+*	(%xmm6) b - computation step for calculating wimag
+*/
 _crpow:
 	## double wreal = zreal;
 	movapd %xmm14, %xmm3
@@ -259,6 +342,7 @@ _crpow:
 	## double wimag = zimag;
 	movapd %xmm15, %xmm4
 
+	## double exp = exponent;
 	movq %rcx, %rax
 
 	## if (exp-- != 0) goto _crpow_exp_loop
@@ -271,22 +355,22 @@ _crpow_exp_loop:
 	## wreal_temp = (zreal * wreal - zimag * wimag);
 	/* wreal_temp = zreal * wreal */
 	movapd %xmm14, %xmm5
-	mulsd %xmm3, %xmm5
+	mulpd %xmm3, %xmm5
 	/* a = zimag * wimag */
 	movapd %xmm15, %xmm6
-	mulsd %xmm4, %xmm6
+	mulpd %xmm4, %xmm6
 	/* wreal_temp = wreal_temp - a */
-	subsd %xmm6, %xmm5
+	subpd %xmm6, %xmm5
 
 	## wimag = (zreal * wimag + zimag * wreal);
 	/* wimag = zreal * wimag */
 	movapd %xmm14, %xmm6
-	mulsd %xmm4, %xmm6
+	mulpd %xmm4, %xmm6
 	/* b = zimag * wreal */
 	movapd %xmm15, %xmm4
-	mulsd %xmm3, %xmm4
+	mulpd %xmm3, %xmm4
 	/* wimag = wimag + b */
-	addsd %xmm6, %xmm4
+	addpd %xmm6, %xmm4
 
 	## wreal = wreal_temp;
 	movapd %xmm5, %xmm3
@@ -298,10 +382,10 @@ _crpow_exp_loop:
 _crpow_return:
 	## zreal = wreal + x;
 	movapd %xmm3, %xmm14
-	addsd %xmm10, %xmm14
+	addpd %xmm10, %xmm14
 
 	## zimag = wreal + y;
 	movapd %xmm4, %xmm15
-	addsd %xmm11, %xmm15
+	addpd %xmm11, %xmm15
 
 	ret
