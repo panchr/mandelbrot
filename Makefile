@@ -51,16 +51,19 @@ $(BIN)/mandelbrot-x86: $(BUILD)/mandelbrot.o $(SRC_LIBS) \
 	$(BUILD)/generate_mandelbrot_set-x86.o | $(BIN)
 	$(CC) $(CFLAGS) $(LIBS) $^ -o $@
 
+$(BIN)/imgdiff: $(BUILD)/image.o $(BUILD)/imgdiff.o $(SRC_LIBS) | $(BIN)
+	$(CC) $(CFLAGS) $(LIBS) $^ -o $@
+
 # Object File(s)
 $(BUILD)/image.o: image.c image.h
 
 ### Other Tasks
 test: CFLAGS=-O3 -D NDEBUG
-test: all
+test: all $(BIN)/imgdiff
 	time $(BIN)/mandelbrot mandelbrot.png $(SIZE) $(SIZE) $(ITER) $(EXP)
 	time $(BIN)/mandelbrot-x86 mandelbrot-x86.png $(SIZE) $(SIZE) $(ITER) $(EXP)
 
-	diff mandelbrot.png mandelbrot-x86.png
+	$(BIN)/imgdiff mandelbrot.png mandelbrot-x86.png
 
 clean:
 	$(RM) $(BUILD)

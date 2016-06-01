@@ -78,10 +78,132 @@ Image_T Image_new(const size_t width, const size_t height) {
 	return image;
 	}
 
+/* Create an image from a file.*/
+Image_T Image_fromFile(const char *path) {
+	Image_T image = NULL; /* image to return to client */
+	FILE *fp = NULL; /* pointer to open file object */
+	png_structp png = NULL; /* PNG image struct */
+	png_infop png_info = NULL; /* PNG image info struct */
+	size_t width; /* width of the image */
+	size_t height;  /* height of the image */
+	png_byte color_type; /* type of the color */
+	png_byte **row_pointers = NULL; /* png byte data */
+	png_byte *row = NULL; /* single row in PNG file */
+	size_t h; /* current iterating height */
+	size_t w; /* current iterating width */
+	struct Pixel *pixel; /* current iterating pixel */
+
+	assert(path != NULL);
+
+	/* Open the file for reading in binary mode. */
+	fp = fopen(path, "rb");
+	if (fp == NULL) return NULL;
+
+	/* Create the PNG read struct. */
+	png = png_create_read_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
+	if (png == NULL) {
+		fclose(fp);
+		return NULL;
+		}
+
+	/* Create the PNG info struct. */
+	png_info = png_create_info_struct(png);
+	if (png_info == NULL) {
+		fclose(fp);
+		png_destroy_read_struct(&png, &png_info, NULL);
+		return NULL;
+		}
+
+	/* Error handling. */
+	if (setjmp(png_jmpbuf(png))) {
+		fclose(fp);
+		png_destroy_read_struct(&png, &png_info, NULL);
+		return NULL;
+		}
+
+	/* Start the I/O for the PNG file. */
+	png_init_io(png, fp);
+	png_read_info(png, png_info);
+
+	/* Read the meta-data of the file. */
+	width = (size_t) png_get_image_width(png, png_info);
+	height = (size_t) png_get_image_height(png, png_info);
+	color_type = png_get_color_type(png, png_info);
+	png_read_update_info(png, png_info);
+
+	/* Create the image. */
+	image = Image_new(width, height);
+	if (image == NULL) {
+		fclose(fp);
+		png_destroy_read_struct(&png, &png_info, NULL);
+		return NULL;
+		}
+
+	/* Allocate memory for the data rows. */
+	row_pointers = (png_byte**) png_malloc(png, height * sizeof(png_byte*));
+	if (row_pointers == NULL) {
+		fclose(fp);
+		png_destroy_read_struct(&png, &png_info, NULL);
+		Image_free(image);
+		return NULL;
+		}
+
+	for (h = 0; h < height; h++) {
+		row = png_malloc(png, sizeof(uint8_t) * width * PIXEL_SIZE);
+		if (row == NULL) {
+			fclose(fp);
+			Image_freePngRows(png, row_pointers, h);
+			png_destroy_read_struct(&png, &png_info, NULL);
+			Image_free(image);
+			return  NULL;
+			}
+		row_pointers[h] = row;
+		}
+
+	/* Read the image into memory. */
+	png_read_image(png, row_pointers);
+	fclose(fp);
+
+	/* Store the appropriate pixel data in the image. */
+	for (h = 0; h < height; h++) {
+		row = row_pointers[h];
+		for (w = 0; w < width; w++) {
+			pixel = Image_pixel(image, w, h);
+			pixel->red = *row++;
+			pixel->green = *row++;
+			pixel->blue = *row++;
+			}
+		}
+
+	Image_freePngRows(png, row_pointers, height);
+	return image;
+	}
+
 /* Free the image. */
 void Image_free(Image_T image) {
 	if (image != NULL) free(image->pixels);
 	free(image);
+	}
+
+/* Get the width of an image. */
+size_t Image_getWidth(const Image_T image) {
+	assert(image != NULL);
+
+	return image->width;
+	}
+
+/* Get the height of an image. */
+size_t Image_getHeight(const Image_T image) {
+	assert(image != NULL);
+
+	return image->height;
+	}
+
+/* Get the size of an image. */
+size_t Image_getSize(const Image_T image) {
+	assert(image != NULL);
+
+	return image->width * image->height;
 	}
 
 /* Set the RGB color of the pixel in the image. */
@@ -190,6 +312,40 @@ bool Image_save(const Image_T image, const char *path) {
 	fclose(fp);
 
 	return true;
+	}
+
+/* Count the number of differences in the images. */
+size_t Image_diff(const Image_T image, const Image_T other) {
+	size_t count; /* difference count */
+	size_t width; /* width to iterate */
+	size_t height; /* height to iterate */
+	size_t w; /* current iterating width */
+	size_t h; /* current iterating height */
+	struct Pixel *pixel; /* current pixel of the image */
+	struct Pixel *other_pixel; /* current pixel of the other image */
+
+	assert(image != NULL);
+	assert(other != NULL);
+
+	/* Take the smaller of the two widths and heights. */
+	width = (image->width > other->width) ? other->width: image->width;
+	height = (image->height > other->height) ? other->height: image->height;
+
+	/* Start the count off as the difference in sizes. */
+	count = image->width * image->height - other->width * other->height;
+
+	for (h = 0; h < height; h++) {
+		for (w = 0; w < width; w++) {
+			pixel = Image_pixel(image, w, h);
+			other_pixel = Image_pixel(other, w, h);
+
+			if (pixel->red != other_pixel->red ||
+				pixel->green != other_pixel->green ||
+				pixel->blue != other_pixel->blue) count++;
+			}
+		}
+
+	return count;
 	}
 
 /* --- Internal Methods --- */
