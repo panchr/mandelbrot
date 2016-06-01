@@ -191,24 +191,23 @@ loop_height:
 /* Primary iteration loop for a given point.*/
 iter_loop:
 	## crpow(&zreal, &zimag, exponent, x, y);
+	## crpow(&zreal, &zimag, exponent, x, y);
 	call _crpow
 	call _crpow
 
 	## double temp{A, B} = (zreal * zreal + zimag * zimag);
 	movapd %xmm14, %xmm3
 	mulpd %xmm14, %xmm3
-	movapd %xmm15, %xmm4
-	mulpd %xmm15, %xmm4
-	addpd %xmm3, %xmm4
+	/* xmm3 = xmm15 * xmm15 + xmm3 */
+	vfmadd231pd %xmm15, %xmm15, %xmm3
 	
 	## drawA = drawA && (tempA <= limit);
-	cmplepd %xmm9, %xmm4
-	movq %xmm4, %rax
+	cmplepd %xmm9, %xmm3
+	movq %xmm3, %rax
 	andb %al, %bl
 
 	## drawB = drawB && (tempB <= limit);
-	shufpd $1, %xmm4, %xmm4
-	movq %xmm4, %rax
+	pextrq $1,%xmm3, %rax 
 	andb %al, %bh
 
 	## if (! (drawA | drawB)) goto end_loop_height;
@@ -366,24 +365,17 @@ _crpow:
 /* Primary exponentiation loop for computing z^exponent. */
 _crpow_exp_loop:
 	## wreal_temp = (zreal * wreal - zimag * wimag);
-	/* wreal_temp = zreal * wreal */
-	movapd %xmm14, %xmm5
-	mulpd %xmm3, %xmm5
-	/* a = zimag * wimag */
-	movapd %xmm15, %xmm6
-	mulpd %xmm4, %xmm6
-	/* wreal_temp = wreal_temp - a */
-	subpd %xmm6, %xmm5
+	movapd %xmm15, %xmm5
+	mulpd %xmm4, %xmm5
+	/* xmm5 = xmm14 * xmm3 - xmm5
+	=> xmm5 = xmm14 * xmm3 - xmm15 * xmm4 */
+	vfmsub231pd %xmm14, %xmm3,%xmm5
 
 	## wimag = (zreal * wimag + zimag * wreal);
-	/* wimag = zreal * wimag */
-	movapd %xmm14, %xmm6
-	mulpd %xmm4, %xmm6
-	/* b = zimag * wreal */
-	movapd %xmm15, %xmm4
-	mulpd %xmm3, %xmm4
-	/* wimag = wimag + b */
-	addpd %xmm6, %xmm4
+	mulpd %xmm14, %xmm4
+	/* xmm4 = xmm15 * xmm3 + xmm4
+	=> xmm4 = xmm14 * xmm4 + xmm15 * xmm3*/
+	vfmadd231pd %xmm15, %xmm3, %xmm4
 
 	## wreal = wreal_temp;
 	movapd %xmm5, %xmm3
