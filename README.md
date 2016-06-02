@@ -216,3 +216,107 @@ However, this can be simplified to
 ```
 
 Which has fewer branches (for jumps) and instructions while also being simpler.
+
+This is the current level of optimization. Using SIMD instructions led to a nearly 40%
+(or higher with large enough iterations/image size) faster program. However,
+there are some very minor errors which seem to emerge from floating point error
+in large input. For example, with dimensions of `2500x2500`, there is a 7-pixel
+difference in the resulting output when compared to the original C program.
+
+To run some of the timing tests, run `make test SIZE={size} ITER={iter} EXP={exp}`,
+where `size` is the width and height of the image in pixels, `iter` is the number
+of iterations, and `exp` is the exponent to use.
+
+Some time trials are provided below.
+
+```sh
+$ make test
+time bin/mandelbrot mandelbrot.png 1000 1000 250 2
+Configuration
+	File: mandelbrot.png
+	Size (Width x Height): 1000 x 1000 px
+	Iterations: 250
+	Exponent: 2
+        0.19 real         0.16 user         0.00 sys
+time bin/mandelbrot-x86 mandelbrot-x86.png 1000 1000 250 2
+Configuration
+	File: mandelbrot-x86.png
+	Size (Width x Height): 1000 x 1000 px
+	Iterations: 250
+	Exponent: 2
+        0.12 real         0.11 user         0.00 sys
+bin/imgdiff mandelbrot.png mandelbrot-x86.png
+Difference
+	Count: 0
+	Primary Ratio: 0.000000
+	Secondary Ratio: 0.000000
+
+$ make SIZE=2500
+time bin/mandelbrot mandelbrot.png 2500 2500 250 2
+Configuration
+	File: mandelbrot.png
+	Size (Width x Height): 2500 x 2500 px
+	Iterations: 250
+	Exponent: 2
+        1.03 real         0.98 user         0.02 sys
+time bin/mandelbrot-x86 mandelbrot-x86.png 2500 2500 250 2
+Configuration
+	File: mandelbrot-x86.png
+	Size (Width x Height): 2500 x 2500 px
+	Iterations: 250
+	Exponent: 2
+        0.77 real         0.67 user         0.02 sys
+bin/imgdiff mandelbrot.png mandelbrot-x86.png
+Difference
+	Count: 7
+	Primary Ratio: 0.000001
+	Secondary Ratio: 0.000001
+make: *** [test] Error 1
+
+$ make ITER=5000
+time bin/mandelbrot mandelbrot.png 1000 1000 5000 2
+Configuration
+	File: mandelbrot.png
+	Size (Width x Height): 1000 x 1000 px
+	Iterations: 5000
+	Exponent: 2
+        1.95 real         1.93 user         0.01 sys
+time bin/mandelbrot-x86 mandelbrot-x86.png 1000 1000 5000 2
+Configuration
+	File: mandelbrot-x86.png
+	Size (Width x Height): 1000 x 1000 px
+	Iterations: 5000
+	Exponent: 2
+        1.10 real         1.09 user         0.00 sys
+bin/imgdiff mandelbrot.png mandelbrot-x86.png
+Difference
+	Count: 3
+	Primary Ratio: 0.000003
+	Secondary Ratio: 0.000003
+make: *** [test] Error 1
+
+$ make SIZE=10000 ITER=1000 EXP=5
+time bin/mandelbrot mandelbrot.png 10000 10000 1000 5
+Configuration
+	File: mandelbrot.png
+	Size (Width x Height): 10000 x 10000 px
+	Iterations: 1000
+	Exponent: 5
+      158.99 real       158.35 user         0.44 sys
+time bin/mandelbrot-x86 mandelbrot-x86.png 10000 10000 1000 5
+Configuration
+	File: mandelbrot-x86.png
+	Size (Width x Height): 10000 x 10000 px
+	Iterations: 1000
+	Exponent: 5
+       92.58 real        91.64 user         0.50 sys
+bin/imgdiff mandelbrot.png mandelbrot-x86.png
+Difference
+	Count: 1348
+	Primary Ratio: 0.000013
+	Secondary Ratio: 0.000013
+make: *** [test] Error 1
+```
+
+As shown, the improved `x86-64` version is significantly faster. Although it does
+have some error, it not noticeable at all (usually less than 0.002%).
