@@ -37,7 +37,7 @@ img_memerr: .string "Memory error when creating image.\n"
 	*	%xmm11 - y
 	* 	%xmm12 - x_scale
 	*	%xmm13 - y_scale
-	*	%xmm14 -  zreal
+	*	%xmm14 - zreal
 	*	%xmm15 - zimag
 	*/
 
@@ -356,7 +356,7 @@ _crpow:
 	## double exp = exponent;
 	movq %rcx, %rax
 
-	## if (exp-- != 0) goto _crpow_exp_loop
+	## if (--exp != 0) goto _crpow_exp_loop
 	decq %rax
 	jnz _crpow_exp_loop
 
@@ -380,12 +380,10 @@ _crpow_exp_loop:
 	## wreal = wreal_temp;
 	movapd %xmm5, %xmm3
 
-	## while (exp--)
+	## if (--exp != 0) goto _crpow_exp_loop
 	decq %rax
 	jnz _crpow_exp_loop
 
-/* Return the computed value after adding in the extra complex number, c. */
-_crpow_return:
 	## zreal = wreal + x;
 	movapd %xmm3, %xmm14
 	addpd %xmm10, %xmm14
