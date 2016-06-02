@@ -1,8 +1,8 @@
 # mandelbrot
 *A Mandelbrot image generator written in C and optimized in x86*
 
-**Note: currently, the `x86-64` language used is the `Mach-O` format (for OS X). It is
-written using the AT&T format of `x86-64`.
+**Note: currently, the `x86-64` language used is in the AT&T format while being
+assembled for [`Mach-O`](https://en.wikipedia.org/wiki/Mach-O) (for OS X).
 Assembly language is not very portable, and so it might not run/assemble
 properly on other machines and configurations.**
 
@@ -25,14 +25,12 @@ For debugging purposes, I used `gdb` (also installed via Homebrew) and then
 `Instruments` for profiling code.
 
 ## Optimization Attempts
-Here, I go through a list of my attempted optimizations and their results.
-
 ### C Optimization
 My first goal was to optimize the C code.
 
 To begin, I thought I could stop using `cpow`, as this was designed to raise a complex
 number to a complex power. However, my Mandelbrot Set would only be rendered
-with real, integer exponents. So,I rolled out my own complex exponentiation
+with real, integer exponents. So, I rolled out my own complex exponentiation
 function, called `crpow`, which was essentially just an iterated multiplication:
 
 ```C
@@ -51,8 +49,9 @@ To avoid relying on it, I simply used two `double`s to store the real and imagin
 parts of the complex number, and passed in pointers to those `double`s. My
 reasoning to use pointers was to simplify returning the result; they were stored
 directly into the input pointers. The function later evolved into adding in the `c`
-value as well, to simplify the overall computations. In this case, `c` is the point being
-currently examined.
+value to simplify the overall computations. In this case, `c` is the point being
+currently examined (the Mandelbrot Set for an exponent `e` at a point `c`
+is the iterated value of `z^e + c` where `z` starts at `c`).
 
 Once this was done, I could completely remove my reliance on `cabs` as well, because
 I could compute the sum of the squared real/imaginary parts, and compare that to
@@ -87,6 +86,47 @@ me to avoid most of the data movement.
 
 *Note: this technically occurred separately in both the `dev-x86-packed-parallel` and
 `dev-x86-packed` branches.*
+
+In addition, I designed my subroutines (at this point, only `crpow`) to not act as
+direct functions. In that sense, they break the `x86-64` conventions because
+arguments are not passed to them using the proper registers. Instead, the
+subroutines directly read the proper registers and store the data in the appropriate
+places. This was tricky because I had to make sure any temporary registers used
+there were not needed elsewhere - to do so, I kept track of what registers were
+being used for.
+
+At this point, I unrolled the innermost loop for the iteration of `z^e + c`.
+The original loop of
+
+```C
+for (iter = 0; iter < iterations; iter++) {
+	crpow(&zreal, &zimag, exp, x, y);
+
+	/* test of abs(z)^2 is still within the limit */
+	}
+```
+
+became
+
+```C
+/* Odd number of iterations */
+if (iterations % 2 == 1) crpow(&zreal, &zimag, exp, x, y);
+
+/* Iterate half the amount but do twice the work in each iteration. */
+for (iter = 0; iter < iterations / 2; iter++) {
+	crpow(&zreal, &zimag, exp, x, y);
+	crpow(&zreal, &zimag, exp, x, y);
+
+	/* test of abs(z)^2 is still within the limit */
+	}
+```
+
+The primary goal of loop unrolling is to minimize the number of jumps.
+Interestingly, this created an issue in the C version - if `zreal` or `zimag` overflowed
+after the first call to `crpow`, then they would be treated as lower than the limit
+(because they are now negative after overflowing). I could not fix this, so I removed
+the loop unrolling in C. In the `x86-64` version, however, overflow did not cause
+any problems - I'm not sure why.
 
 ### Packed Double Optimization Attempt 1
 Because I had never used `XMM` registers prior to this project, I had no idea how
