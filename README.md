@@ -24,6 +24,17 @@ I installed with [Homebrew](http://brew.sh).
 For debugging purposes, I used `gdb` (also installed via Homebrew) and then
 `Instruments` for profiling code.
 
+### Building
+To build, you must have `make` installed (along with the other pre-requisites listed
+above).Then, simply run `make` in the root project directory and it should be built.
+Again, assembly is not very portable so it will not build on most systems.
+
+`make debug` builds a debugging version (specifically, with the `-g` flag to `gcc`).
+Similarly, `make profile` builds a profiling version (with the `-pg` flags).
+Finally, `make test` with optional parameters (see [below](#final-timing-tests))
+will run time the `x86-64` optimized version and compare it to the regular C
+version.
+
 ## Optimization Attempts
 ### C Optimization
 My first goal was to optimize the C code.
@@ -228,6 +239,8 @@ where `size` is the width and height of the image in pixels, `iter` is the numbe
 of iterations, and `exp` is the exponent to use.
 
 Some time trials are provided below.
+
+## Final Timing Tests
 
 ```sh
 $ make test
