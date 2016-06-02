@@ -110,3 +110,69 @@ were still required for most operations. Namely, `crpow` required me to use
 multiple `shufpd` instructions (which switch the low/high quadwords) to
 properly use other instructions. Overall, although fewer registers were used,
 this approach did not work.
+
+### Packed Double Optimization Attempt 2
+In the second attempt, I tried a different approach - parallelizing computations using
+[SIMD (Single Instruction Multiple Data)](https://en.wikipedia.org/wiki/SIMD).
+
+Instead of storing both parts of a complex number in a single `XMM` register,
+I stored two complex numbers across two registers. Interestingly, an instruction
+that operates only on the low quadword (i.e 64 bits) and an instruction that
+operates on both quadwords (i.e 128 bits) takes the same amount of time. So,
+in theory, this would double the speed of the program if implemented correctly.
+
+I decided to parallelize the computation in the width (real) direction, but this is
+arbitrary. In addition, I made the choice to enforce an even width/height, just
+because it simplified dealing with the case of an odd width (which would cause
+the program to go past the array bounds).
+
+The most difficult part about this was properly handling which point(s) should be
+drawn. Previously, I removed the entire `draw` boolean which kept track of
+whether or not to draw a given point, because this was not necessary with a single
+point. Now, however, I had to store these in separate byte-sized registers so that
+I could check which points to draw. In addition, I decided to only stop iterating
+prematurely if both of the points did not need to be drawn.This prevented a full
+doubling of speed, but it simplified the logic - there would be a lot more information
+to keep track of if both points were decoupled. In fact, at that point it would be
+easier to just deal with them completely independently. Instead, I continue iterating
+until either a) both points should not be drawn or b) the iterations complete.
+Then, the points that can be drawn are drawn.
+
+A few other minute optimizations included removing extraneous jumps to
+simplify logic. For example, the C code
+
+```C
+if (absval_squared >= limit) {
+	draw = false;
+	break;
+	}
+else { /* placeholder for continuing iteration */ }
+```
+
+translates to
+
+```asm
+/* absval_squared, limit, and draw are just placeholders for the actual registers */
+	cmplepd absval_squared, limit
+	movq limit, %rax
+	testq %rax, %rax
+	jnz in_limit
+
+	movb $0, draw
+
+in_limit:
+	/* continue iteration */
+```
+
+However, this can be simplified to
+
+```asm
+/* absval_squared, limit, and draw are just placeholders for the actual registers */
+	cmplepd absval_squared, limit
+	movq limit, %rax
+	andb %rax, draw
+	
+	/* continue iteration */
+```
+
+Which has fewer branches (for jumps) and instructions while also being simpler.
