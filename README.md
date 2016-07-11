@@ -264,7 +264,7 @@ Difference
 	Primary Ratio: 0.000000
 	Secondary Ratio: 0.000000
 
-$ make SIZE=2500
+$ make test SIZE=2500
 time bin/mandelbrot mandelbrot.png 2500 2500 250 2
 Configuration
 	File: mandelbrot.png
@@ -286,7 +286,7 @@ Difference
 	Secondary Ratio: 0.000001
 make: *** [test] Error 1
 
-$ make ITER=5000
+$ make test ITER=5000
 time bin/mandelbrot mandelbrot.png 1000 1000 5000 2
 Configuration
 	File: mandelbrot.png
@@ -308,7 +308,7 @@ Difference
 	Secondary Ratio: 0.000003
 make: *** [test] Error 1
 
-$ make SIZE=10000 ITER=1000 EXP=5
+$ make test SIZE=10000 ITER=1000 EXP=5
 time bin/mandelbrot mandelbrot.png 10000 10000 1000 5
 Configuration
 	File: mandelbrot.png
